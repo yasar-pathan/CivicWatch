@@ -1,7 +1,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:civic_watch/views/authentication/login_screen.dart';
+import 'package:civic_watch/views/citizen/report_issue_screen.dart';
+import 'package:civic_watch/views/citizen/issue_detail_screen.dart';
+import 'package:civic_watch/views/citizen/my_reports_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -15,10 +19,13 @@ class _DashboardScreenState extends State<DashboardScreen>
   late AnimationController _fadeController;
   late AnimationController _scaleController;
   int _selectedIndex = 0;
+  String? _userCity;
+  bool _isLoadingCity = true;
 
   @override
   void initState() {
     super.initState();
+    _fetchUserCity();
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -30,6 +37,25 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  Future<void> _fetchUserCity() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        if (doc.exists && mounted) {
+          final data = doc.data() as Map<String, dynamic>;
+          setState(() {
+            _userCity = data['City'] ?? data['city'];
+            _isLoadingCity = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching city: $e');
+      if (mounted) setState(() => _isLoadingCity = false);
+    }
+  }
+
   @override
   void dispose() {
     _fadeController.dispose();
@@ -39,9 +65,15 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
+    // If selected index is MyReports, show that screen directly (it has its own Scaffold)
+    // But we need to keep BottomNav visible.
+    // Ideally MyReportsScreen shouldn't be a Scaffold if nested, but it is.
+    // We can wrap it in a container and remove Scaffold property if we modify it, but let's try standard switching.
     return Scaffold(
       backgroundColor: const Color(0xFF0f172a),
-      appBar: AppBar(
+      // App bar only for Home mainly to show Logout?
+      // Or move Logout to Profile.
+      appBar: _selectedIndex == 0 ? AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
@@ -53,19 +85,71 @@ class _DashboardScreenState extends State<DashboardScreen>
             tooltip: 'Logout',
           ),
         ],
-      ),
+      ) : null,
       body: Stack(
         children: [
-          // Animated gradient background
-          _buildAnimatedBackground(),
+          // Background for tabs that need it (Dashboard, Profile etc)
+          if (_selectedIndex != 1) _buildAnimatedBackground(),
 
-          // Main content
-          SafeArea(
+          _buildBody(),
+
+          // FAB only on Dashboard
+          if (_selectedIndex == 0)
+            Positioned(
+              bottom: 90,
+              right: 20,
+              child: _buildFAB(),
+            ),
+
+          // Bottom Navigation
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: _buildBottomNav(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    switch (_selectedIndex) {
+      case 0:
+        return _buildDashboardTab();
+      case 1:
+        // MyReportsScreen is a Scaffold. To nest it inside this Stack while keeping BottomNav on top,
+        // we might have issues.
+        // But let's try.
+        return const Padding(
+           padding: EdgeInsets.only(bottom: 70), // Space for bottom nav
+           child: MyReportsScreen(),
+        );
+      case 2:
+        return const Center(child: Text('Map View', style: TextStyle(color: Colors.white)));
+      case 3:
+        // Pass isTab: true to hide the back button and adjust layout
+        return const ReportIssueScreen(isTab: true);
+      case 4:
+         return Center(
+             child: ElevatedButton(
+                 onPressed: () => _logout(context),
+                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6366f1)),
+                 child: const Text('Logout', style: TextStyle(color: Colors.white)),
+             )
+         );
+      default:
+        return _buildDashboardTab();
+    }
+  }
+
+  Widget _buildDashboardTab() {
+     return SafeArea(
             child: Column(
               children: [
                 // Header
-                _buildHeader(),
-
+                _buildHeader(), // Include Header in dashboard tab
+                
                 // Scrollable content
                 Expanded(
                   child: SingleChildScrollView(
@@ -85,25 +169,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
               ],
             ),
-          ),
-
-          // Floating Action Button
-          Positioned(
-            bottom: 90,
-            right: 20,
-            child: _buildFAB(),
-          ),
-
-          // Bottom Navigation
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: _buildBottomNav(),
-          ),
-        ],
-      ),
-    );
+          );
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -186,7 +252,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Ahmedabad, Gujarat',
+                      _userCity ?? 'Getting location...',
                       style: TextStyle(
                         color: const Color(0xFF94a3b8),
                         fontSize: 14,
@@ -264,17 +330,73 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildStatsCards() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          Expanded(child: _buildStatCard('17', 'REPORTED', 0)),
-          const SizedBox(width: 12),
-          Expanded(child: _buildStatCard('12', 'RESOLVED', 1)),
-          const SizedBox(width: 12),
-          Expanded(child: _buildStatCard('342', 'IMPACT', 2)),
-        ],
-      ),
+    if (_isLoadingCity) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Row(
+          children: [
+            Expanded(child: _buildStatCard('-', 'REPORTED', 0)),
+            const SizedBox(width: 12),
+            Expanded(child: _buildStatCard('-', 'RESOLVED', 1)),
+            const SizedBox(width: 12),
+            Expanded(child: _buildStatCard('-', 'IMPACT', 2)),
+          ],
+        ),
+      );
+    }
+  
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('issues')
+          .where('City', isEqualTo: _userCity)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          // Show loading state or zeros while loading
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Expanded(child: _buildStatCard('-', 'REPORTED', 0)),
+                const SizedBox(width: 12),
+                Expanded(child: _buildStatCard('-', 'RESOLVED', 1)),
+                const SizedBox(width: 12),
+                Expanded(child: _buildStatCard('-', 'IMPACT', 2)),
+              ],
+            ),
+          );
+        }
+
+        final docs = snapshot.data!.docs;
+        final reportedCount = docs.length;
+        final resolvedCount = docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return data['status'] == 'Done';
+        }).length;
+        
+        // Calculate impact (e.g., sum of upvotes)
+        int impactCount = 0;
+        for (var doc in docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            // Impact algorithm: 1 point per issue + upvotes + (5 points if resolved)
+            // Or just sum of upvotes as originally planned. Let's do simple sum of upvotes + comments
+            int upvotes = (data['upvotes'] ?? 0) as int;
+            impactCount += upvotes;
+        }
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              Expanded(child: _buildStatCard(reportedCount.toString(), 'REPORTED', 0)),
+              const SizedBox(width: 12),
+              Expanded(child: _buildStatCard(resolvedCount.toString(), 'RESOLVED', 1)),
+              const SizedBox(width: 12),
+              Expanded(child: _buildStatCard(impactCount.toString(), 'IMPACT', 2)),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -425,40 +547,111 @@ class _DashboardScreenState extends State<DashboardScreen>
             ],
           ),
           const SizedBox(height: 16),
-          _buildIssueCard(
-            emoji: '🕳️',
-            title: 'Large Pothole on SG Highway',
-            distance: '2.3 km away',
-            time: '2h ago',
-            status: 'Recognized',
-            statusColor: const Color(0xFFf59e0b),
-            upvotes: 124,
-            comments: 23,
-            index: 0,
-          ),
-          const SizedBox(height: 16),
-          _buildIssueCard(
-            emoji: '💧',
-            title: 'Sewage Leak in Navrangpura',
-            distance: '4.1 km away',
-            time: '5h ago',
-            status: 'In Work',
-            statusColor: const Color(0xFF3b82f6),
-            upvotes: 89,
-            comments: 15,
-            index: 1,
-          ),
-          const SizedBox(height: 16),
-          _buildIssueCard(
-            emoji: '🚧',
-            title: 'Broken Staircase at Railway Station',
-            distance: '6.8 km away',
-            time: '1d ago',
-            status: 'Done',
-            statusColor: const Color(0xFF10b981),
-            upvotes: 234,
-            comments: 67,
-            index: 2,
+          if (_isLoadingCity)
+             const Center(child: CircularProgressIndicator())
+          else
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('issues')
+                .where('City', isEqualTo: _userCity)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+              if (docs.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Text(
+                      'No issues reported in $_userCity yet',
+                      style: TextStyle(
+                        color: const Color(0xFF94a3b8).withOpacity(0.5),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                );
+              }
+              
+              // Client-side sort and limit to avoid complex index requirements
+              final sortedDocs = List<QueryDocumentSnapshot>.from(docs)
+                ..sort((a, b) {
+                  final aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+                  final bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+                  if (aTime == null) return 1;
+                  if (bTime == null) return -1;
+                  return bTime.compareTo(aTime);
+                });
+              
+              final recentDocs = sortedDocs.take(5).toList();
+
+              return Column(
+                children: recentDocs.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final doc = entry.value;
+                  final data = doc.data() as Map<String, dynamic>;
+
+                  // Determine emoji based on category
+                  String emoji = '⚠️';
+                  final category = (data['category'] ?? '').toString().toLowerCase();
+                  if (category.contains('pothole')) emoji = '🕳️';
+                  else if (category.contains('sewage') || category.contains('water')) emoji = '💧';
+                  else if (category.contains('garbage') || category.contains('clean')) emoji = '🗑️';
+                  else if (category.contains('broken') || category.contains('infra')) emoji = '🚧';
+                  else if (category.contains('light') || category.contains('electric')) emoji = '💡';
+
+                  // Format Time
+                  String timeStr = 'Just now';
+                  if (data['createdAt'] != null) {
+                    final timestamp = data['createdAt'] as Timestamp;
+                    final diff = DateTime.now().difference(timestamp.toDate());
+                    if (diff.inDays > 0) timeStr = '${diff.inDays}d ago';
+                    else if (diff.inHours > 0) timeStr = '${diff.inHours}h ago';
+                    else if (diff.inMinutes > 0) timeStr = '${diff.inMinutes}m ago';
+                  }
+
+                  // Status Color
+                  Color statusColor = const Color(0xFFf59e0b); // Default orange
+                  final status = (data['status'] ?? 'Reported').toString();
+                  if (status == 'Done' || status == 'Resolved') statusColor = const Color(0xFF10b981);
+                  else if (status == 'In Work' || status == 'In Progress') statusColor = const Color(0xFF3b82f6);
+                  else if (status == 'Rejected') statusColor = const Color(0xFFef4444);
+
+                  return Column(
+                    children: [
+                      _buildIssueCard(
+                        emoji: emoji,
+                        imageUrl: data['photoUrl'],
+                        title: data['title'] ?? 'Untitled Issue',
+                        distance: data['address'] ?? 'Unknown location', // Using address as distance/location placeholder
+                        time: timeStr,
+                        status: status,
+                        statusColor: statusColor,
+                        upvotes: data['upvotes'] ?? 0,
+                        comments: data['commentCount'] ?? 0,
+                        index: index,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => IssueDetailScreen(
+                                issueId: doc.id,
+                                data: data,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      if (index < snapshot.data!.docs.length - 1)
+                        const SizedBox(height: 16),
+                    ],
+                  );
+                }).toList(),
+              );
+            },
           ),
         ],
       ),
@@ -467,6 +660,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildIssueCard({
     required String emoji,
+    String? imageUrl,
     required String title,
     required String distance,
     required String time,
@@ -475,6 +669,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     required int upvotes,
     required int comments,
     required int index,
+    required VoidCallback onTap,
   }) {
     return FadeTransition(
       opacity: CurvedAnimation(
@@ -490,7 +685,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           curve: Interval(0.4 + (index * 0.1), 1.0, curve: Curves.easeOut),
         )),
         child: GestureDetector(
-          onTap: () {},
+          onTap: onTap,
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -506,18 +701,48 @@ class _DashboardScreenState extends State<DashboardScreen>
                       width: 80,
                       height: 80,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            const Color(0xFF6366f1).withOpacity(0.2),
-                            const Color(0xFFec4899).withOpacity(0.2),
-                          ],
-                        ),
+                        gradient: (imageUrl == null || imageUrl.isEmpty)
+                            ? LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  const Color(0xFF6366f1).withOpacity(0.2),
+                                  const Color(0xFFec4899).withOpacity(0.2),
+                                ],
+                              )
+                            : null,
+                        color: const Color(0xFF1e293b),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Center(
-                        child: Text(emoji, style: const TextStyle(fontSize: 32)),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: (imageUrl != null && imageUrl.isNotEmpty)
+                            ? Image.network(
+                                imageUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Center(
+                                    child: Text(emoji,
+                                        style: const TextStyle(fontSize: 32)),
+                                  );
+                                },
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Center(
+                                    child: CircularProgressIndicator(
+                                      value: loadingProgress.expectedTotalBytes != null
+                                          ? loadingProgress.cumulativeBytesLoaded /
+                                              loadingProgress.expectedTotalBytes!
+                                          : null,
+                                      strokeWidth: 2,
+                                    ),
+                                  );
+                                },
+                              )
+                            : Center(
+                                child: Text(emoji,
+                                    style: const TextStyle(fontSize: 32)),
+                              ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -633,7 +858,12 @@ class _DashboardScreenState extends State<DashboardScreen>
         curve: const Interval(0.7, 1.0, curve: Curves.elasticOut),
       ),
       child: GestureDetector(
-        onTap: () {},
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ReportIssueScreen()),
+          );
+        },
         child: Container(
           width: 64,
           height: 64,
@@ -674,14 +904,15 @@ class _DashboardScreenState extends State<DashboardScreen>
           topRight: Radius.circular(40),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildNavItem(Icons.home, 'Home', 0),
-          _buildNavItem(Icons.map, 'Map', 1),
-          _buildNavItem(Icons.assignment, 'Issues', 2),
-          _buildNavItem(Icons.person, 'Profile', 3),
+          _buildNavItem(Icons.assignment, 'Reports', 1),
+          _buildNavItem(Icons.map, 'Map', 2),
+          _buildNavItem(Icons.flag, 'Issues', 3),
+          _buildNavItem(Icons.person, 'Profile', 4),
         ],
       ),
     );
@@ -696,7 +927,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         });
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
               ? const Color(0xFF6366f1).withOpacity(0.1)
@@ -729,7 +960,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 10,
                 color: isSelected
                     ? const Color(0xFF6366f1)
                     : const Color(0xFF64748b),
