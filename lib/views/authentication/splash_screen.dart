@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:civic_watch/views/citizen/dashboard_screen.dart';
 import 'login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -13,10 +15,15 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(seconds: 25), () {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
+    Timer(const Duration(seconds: 12), () {
+      if (mounted) {
+        final user = FirebaseAuth.instance.currentUser;
+        final Widget nextScreen =
+            user != null ? const DashboardScreen() : const LoginScreen();
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => nextScreen),
+        );
+      }
     });
   }
 

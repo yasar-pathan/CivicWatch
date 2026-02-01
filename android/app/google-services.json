@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "343659332406",
+    "project_id": "civicwatch-128a8",
+    "storage_bucket": "civicwatch-128a8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:343659332406:android:f1ef43994c079e2615a997",
+        "android_client_info": {
+          "package_name": "com.example.civic_watch"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4Ym1zeyYO5_5Q8YG9GiRHDRgSN9t8Vno"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
