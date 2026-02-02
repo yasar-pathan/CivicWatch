@@ -2,10 +2,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:civic_watch/models/issue_model.dart'; // Added Issue model
 import 'package:civic_watch/views/authentication/login_screen.dart';
 import 'package:civic_watch/views/citizen/report_issue_screen.dart';
 import 'package:civic_watch/views/citizen/issue_detail_screen.dart';
 import 'package:civic_watch/views/citizen/my_reports_screen.dart';
+import 'package:civic_watch/views/citizen/map_view_screen.dart';
+import 'package:civic_watch/views/citizen/profile_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -21,6 +24,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   int _selectedIndex = 0;
   String? _userCity;
   bool _isLoadingCity = true;
+  String _searchQuery = ''; // Added search query state
 
   @override
   void initState() {
@@ -61,6 +65,39 @@ class _DashboardScreenState extends State<DashboardScreen>
     _fadeController.dispose();
     _scaleController.dispose();
     super.dispose();
+  }
+
+  void _filterIssues(String query) {
+    setState(() {
+      _searchQuery = query;
+    });
+  }
+
+  void _navigateToIssueDetail(Issue issue) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => IssueDetailScreen(
+          issueId: issue.issueId,
+          data: {
+             'id': issue.issueId,
+             'title': issue.title,
+             'description': issue.description,
+             'photoUrl': issue.photoUrl,
+             'category': issue.category,
+             'address': issue.address,
+             'latitude': issue.latitude,
+             'longitude': issue.longitude,
+             'status': issue.status,
+             'upvotes': issue.upvotes,
+             'commentCount': issue.commentCount,
+             'userId': issue.userId,
+             'createdAt': issue.createdAt,
+             'City': _userCity, // Ensure city is passed if needed
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -126,18 +163,12 @@ class _DashboardScreenState extends State<DashboardScreen>
            child: MyReportsScreen(),
         );
       case 2:
-        return const Center(child: Text('Map View', style: TextStyle(color: Colors.white)));
+        return const MapViewScreen();
       case 3:
         // Pass isTab: true to hide the back button and adjust layout
         return const ReportIssueScreen(isTab: true);
       case 4:
-         return Center(
-             child: ElevatedButton(
-                 onPressed: () => _logout(context),
-                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6366f1)),
-                 child: const Text('Logout', style: TextStyle(color: Colors.white)),
-             )
-         );
+         return const ProfileScreen();
       default:
         return _buildDashboardTab();
     }
@@ -546,7 +577,34 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ],
           ),
+          
           const SizedBox(height: 16),
+
+          // Search Bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              border: Border.all(color: const Color(0xFF334155)),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TextField(
+              style: const TextStyle(color: Color(0xFFf1f5f9)),
+              decoration: const InputDecoration(
+                hintText: '🔍 Search Issues...',
+                hintStyle: TextStyle(
+                  color: Color(0xFF64748b),
+                  fontSize: 15,
+                ),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 14),
+              ),
+              onChanged: (value) => _filterIssues(value),
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+
           if (_isLoadingCity)
              const Center(child: CircularProgressIndicator())
           else
@@ -576,8 +634,33 @@ class _DashboardScreenState extends State<DashboardScreen>
                 );
               }
               
-              // Client-side sort and limit to avoid complex index requirements
-              final sortedDocs = List<QueryDocumentSnapshot>.from(docs)
+              // Filter docs based on search query
+              var filteredDocs = docs;
+              if (_searchQuery.isNotEmpty) {
+                final q = _searchQuery.toLowerCase();
+                filteredDocs = docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final title = (data['title'] ?? '').toString().toLowerCase();
+                  final category = (data['category'] ?? '').toString().toLowerCase();
+                  final status = (data['status'] ?? '').toString().toLowerCase();
+                  return title.contains(q) || category.contains(q) || status.contains(q);
+                }).toList();
+              }
+
+              if (filteredDocs.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20.0),
+                    child: Text(
+                      'No matching issues found',
+                      style: TextStyle(color: Color(0xFF94a3b8)),
+                    ),
+                  ),
+                );
+              }
+
+              // Client-side sort and limit
+              final sortedDocs = List<QueryDocumentSnapshot>.from(filteredDocs)
                 ..sort((a, b) {
                   final aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
                   final bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
@@ -586,69 +669,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                   return bTime.compareTo(aTime);
                 });
               
-              final recentDocs = sortedDocs.take(5).toList();
+              final recentDocs = sortedDocs.take(10).toList(); // Show more with search
 
               return Column(
                 children: recentDocs.asMap().entries.map((entry) {
                   final index = entry.key;
                   final doc = entry.value;
-                  final data = doc.data() as Map<String, dynamic>;
+                  final issue = Issue.fromFirestore(doc); // Convert to Issue model
 
-                  // Determine emoji based on category
-                  String emoji = '⚠️';
-                  final category = (data['category'] ?? '').toString().toLowerCase();
-                  if (category.contains('pothole')) emoji = '🕳️';
-                  else if (category.contains('sewage') || category.contains('water')) emoji = '💧';
-                  else if (category.contains('garbage') || category.contains('clean')) emoji = '🗑️';
-                  else if (category.contains('broken') || category.contains('infra')) emoji = '🚧';
-                  else if (category.contains('light') || category.contains('electric')) emoji = '💡';
-
-                  // Format Time
-                  String timeStr = 'Just now';
-                  if (data['createdAt'] != null) {
-                    final timestamp = data['createdAt'] as Timestamp;
-                    final diff = DateTime.now().difference(timestamp.toDate());
-                    if (diff.inDays > 0) timeStr = '${diff.inDays}d ago';
-                    else if (diff.inHours > 0) timeStr = '${diff.inHours}h ago';
-                    else if (diff.inMinutes > 0) timeStr = '${diff.inMinutes}m ago';
-                  }
-
-                  // Status Color
-                  Color statusColor = const Color(0xFFf59e0b); // Default orange
-                  final status = (data['status'] ?? 'Reported').toString();
-                  if (status == 'Done' || status == 'Resolved') statusColor = const Color(0xFF10b981);
-                  else if (status == 'In Work' || status == 'In Progress') statusColor = const Color(0xFF3b82f6);
-                  else if (status == 'Rejected') statusColor = const Color(0xFFef4444);
-
-                  return Column(
-                    children: [
-                      _buildIssueCard(
-                        emoji: emoji,
-                        imageUrl: data['photoUrl'],
-                        title: data['title'] ?? 'Untitled Issue',
-                        distance: data['address'] ?? 'Unknown location', // Using address as distance/location placeholder
-                        time: timeStr,
-                        status: status,
-                        statusColor: statusColor,
-                        upvotes: data['upvotes'] ?? 0,
-                        comments: data['commentCount'] ?? 0,
-                        index: index,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => IssueDetailScreen(
-                                issueId: doc.id,
-                                data: data,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      if (index < snapshot.data!.docs.length - 1)
-                        const SizedBox(height: 16),
-                    ],
-                  );
+                  return _buildIssueCard(issue, index);
                 }).toList(),
               );
             },
@@ -658,23 +687,11 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildIssueCard({
-    required String emoji,
-    String? imageUrl,
-    required String title,
-    required String distance,
-    required String time,
-    required String status,
-    required Color statusColor,
-    required int upvotes,
-    required int comments,
-    required int index,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildIssueCard(Issue issue, int index) {
     return FadeTransition(
       opacity: CurvedAnimation(
         parent: _fadeController,
-        curve: Interval(0.4 + (index * 0.1), 1.0, curve: Curves.easeOut),
+        curve: Interval(0.3 + (index * 0.1), 1.0, curve: Curves.easeOut),
       ),
       child: SlideTransition(
         position: Tween<Offset>(
@@ -682,162 +699,204 @@ class _DashboardScreenState extends State<DashboardScreen>
           end: Offset.zero,
         ).animate(CurvedAnimation(
           parent: _fadeController,
-          curve: Interval(0.4 + (index * 0.1), 1.0, curve: Curves.easeOut),
+          curve: Interval(0.3 + (index * 0.1), 1.0, curve: Curves.easeOut),
         )),
         child: GestureDetector(
-          onTap: onTap,
+          onTap: () => _navigateToIssueDetail(issue),
           child: Container(
+            margin: const EdgeInsets.only(bottom: 16),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF1e293b),
-              border: Border.all(color: const Color(0xFF334155)),
-              borderRadius: BorderRadius.circular(20),
+              color: const Color(0xFF1e293b), // Dashboard card color
+              border: Border.all(color: const Color(0xFF334155)), // Dashboard border
+              borderRadius: BorderRadius.circular(20), // Dashboard radius
             ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        gradient: (imageUrl == null || imageUrl.isEmpty)
-                            ? LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  const Color(0xFF6366f1).withOpacity(0.2),
-                                  const Color(0xFFec4899).withOpacity(0.2),
-                                ],
-                              )
-                            : null,
-                        color: const Color(0xFF1e293b),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: (imageUrl != null && imageUrl.isNotEmpty)
-                            ? Image.network(
-                                imageUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Center(
-                                    child: Text(emoji,
-                                        style: const TextStyle(fontSize: 32)),
-                                  );
-                                },
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return Center(
-                                    child: CircularProgressIndicator(
-                                      value: loadingProgress.expectedTotalBytes != null
-                                          ? loadingProgress.cumulativeBytesLoaded /
-                                              loadingProgress.expectedTotalBytes!
-                                          : null,
-                                      strokeWidth: 2,
-                                    ),
-                                  );
-                                },
-                              )
-                            : Center(
-                                child: Text(emoji,
-                                    style: const TextStyle(fontSize: 32)),
-                              ),
-                      ),
+                // Image Section (Top - Large)
+                Container(
+                  height: 200,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFF6366f1).withOpacity(0.2),
+                        const Color(0xFFec4899).withOpacity(0.2),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFFf1f5f9),
-                              height: 1.3,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: issue.photoUrl.isNotEmpty
+                      ? Image.network(
+                          issue.photoUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  _getCategoryEmoji(issue.category),
+                                  style: const TextStyle(fontSize: 48),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          Row(
+                        )
+                      : Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.location_on,
-                                  size: 14, color: const Color(0xFF64748b)),
-                              const SizedBox(width: 4),
                               Text(
-                                distance,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: const Color(0xFF64748b),
-                                ),
+                                _getCategoryEmoji(issue.category),
+                                style: const TextStyle(fontSize: 48),
                               ),
-                              const SizedBox(width: 12),
-                              Icon(Icons.access_time,
-                                  size: 14, color: const Color(0xFF64748b)),
-                              const SizedBox(width: 4),
-                              Text(
-                                time,
+                              const SizedBox(height: 8),
+                              const Text(
+                                '[Issue Photo]',
                                 style: TextStyle(
-                                  fontSize: 13,
-                                  color: const Color(0xFF64748b),
+                                  fontSize: 14,
+                                  color: Color(0xFF64748b),
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.1),
-                              border: Border.all(
-                                  color: statusColor.withOpacity(0.2)),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              status.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: statusColor,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Title
+                Text(
+                  issue.title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFf1f5f9), // Dashboard text primary
+                    height: 1.3,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                
+                const SizedBox(height: 12),
+                
+                // Location & Time Row
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.location_on,
+                      size: 16,
+                      color: Color(0xFFec4899), // Pink like dashboard
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        issue.address.isNotEmpty ? issue.address : 'Unknown Location', 
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF94a3b8),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const Text(
+                      ' • ',
+                      style: TextStyle(
+                        color: Color(0xFF64748b),
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      _getTimeAgo(issue.createdAt),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF94a3b8),
                       ),
                     ),
                   ],
                 ),
+                
                 const SizedBox(height: 12),
+                
+                // Status Badge (EXACT dashboard badge)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(issue.status).withOpacity(0.1),
+                    border: Border.all(
+                      color: _getStatusColor(issue.status).withOpacity(0.2),
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _getStatusEmoji(issue.status),
+                        style: const TextStyle(fontSize: 10),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        issue.status.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _getStatusColor(issue.status),
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 12),
+                
+                // Divider (same as dashboard)
                 Container(
                   height: 1,
                   color: const Color(0xFF334155),
                 ),
+                
                 const SizedBox(height: 12),
+                
+                // Stats Row (Upvotes & Comments)
                 Row(
                   children: [
-                    Icon(Icons.thumb_up,
-                        size: 16, color: const Color(0xFF6366f1)),
+                    const Icon(
+                      Icons.thumb_up,
+                      size: 18,
+                      color: Color(0xFF6366f1), // Dashboard primary
+                    ),
                     const SizedBox(width: 6),
                     Text(
-                      upvotes.toString(),
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: const Color(0xFF94a3b8),
+                      '${issue.upvotes} upvotes',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF94a3b8),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     const SizedBox(width: 16),
-                    Icon(Icons.chat_bubble_outline,
-                        size: 16, color: const Color(0xFF94a3b8)),
+                    const Text('•', style: TextStyle(color: Color(0xFF64748b))),
+                    const SizedBox(width: 16),
+                    const Icon(
+                      Icons.chat_bubble_outline,
+                      size: 18,
+                      color: Color(0xFF94a3b8),
+                    ),
                     const SizedBox(width: 6),
                     Text(
-                      comments.toString(),
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: const Color(0xFF94a3b8),
+                      '${issue.commentCount} comments',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF94a3b8),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -851,6 +910,48 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  // Helper: Get status color (EXACT dashboard colors)
+  Color _getStatusColor(String status) {
+    switch(status) {
+      case 'Reported': return const Color(0xFFef4444);
+      case 'Recognized': return const Color(0xFFf59e0b);
+      case 'InWork': return const Color(0xFF3b82f6);
+      case 'Done': return const Color(0xFF10b981);
+      default: return const Color(0xFF64748b);
+    }
+  }
+
+  // Helper: Get status emoji
+  String _getStatusEmoji(String status) {
+    switch(status) {
+      case 'Reported': return '🔴';
+      case 'Recognized': return '🟡';
+      case 'InWork': return '🔵';
+      case 'Done': return '🟢';
+      default: return '⚪';
+    }
+  }
+
+  // Helper: Get category emoji
+  String _getCategoryEmoji(String category) {
+    switch(category.toLowerCase()) {
+      case 'pothole': return '🕳️';
+      case 'sewage': return '💧';
+      case 'broken': return '🚧';
+      case 'cleanliness': return '🗑️';
+      default: return '📍';
+    }
+  }
+
+  // Helper: Get time ago
+  String _getTimeAgo(DateTime dateTime) {
+    Duration diff = DateTime.now().difference(dateTime);
+    
+    if (diff.inDays > 0) return '${diff.inDays} ${diff.inDays == 1 ? "day" : "days"} ago';
+    if (diff.inHours > 0) return '${diff.inHours} ${diff.inHours == 1 ? "hour" : "hours"} ago';
+    if (diff.inMinutes > 0) return '${diff.inMinutes} ${diff.inMinutes == 1 ? "minute" : "minutes"} ago';
+    return 'Just now';
+  }
   Widget _buildFAB() {
     return ScaleTransition(
       scale: CurvedAnimation(

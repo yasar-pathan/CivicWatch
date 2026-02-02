@@ -20,6 +20,8 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app needs access to location when open to tag reports with their location.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>We need your location to show nearby civic issues</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs access to your gallery to upload photos of issues.</string>
 	<key>NSCameraUsageDescription</key>

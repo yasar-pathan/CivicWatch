@@ -347,11 +347,21 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
     // Format Time
     String timeStr = 'Just now';
     if (widget.data['createdAt'] != null) {
-      final timestamp = widget.data['createdAt'] as Timestamp;
-      final diff = DateTime.now().difference(timestamp.toDate());
-      if (diff.inDays > 0) timeStr = '${diff.inDays}d ago';
-      else if (diff.inHours > 0) timeStr = '${diff.inHours}h ago';
-      else if (diff.inMinutes > 0) timeStr = '${diff.inMinutes}m ago';
+      DateTime? dateTime;
+      if (widget.data['createdAt'] is Timestamp) {
+        dateTime = (widget.data['createdAt'] as Timestamp).toDate();
+      } else if (widget.data['createdAt'] is DateTime) {
+        dateTime = widget.data['createdAt'] as DateTime;
+      } else if (widget.data['createdAt'] is String) {
+        dateTime = DateTime.tryParse(widget.data['createdAt']);
+      }
+
+      if (dateTime != null) {
+        final diff = DateTime.now().difference(dateTime);
+        if (diff.inDays > 0) timeStr = '${diff.inDays}d ago';
+        else if (diff.inHours > 0) timeStr = '${diff.inHours}h ago';
+        else if (diff.inMinutes > 0) timeStr = '${diff.inMinutes}m ago';
+      }
     }
 
     final distance = widget.data['address'] ?? 'Unknown location';
