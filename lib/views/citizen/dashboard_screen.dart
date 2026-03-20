@@ -9,6 +9,7 @@ import 'package:civic_watch/views/citizen/issue_detail_screen.dart';
 import 'package:civic_watch/views/citizen/my_reports_screen.dart';
 import 'package:civic_watch/views/citizen/map_view_screen.dart';
 import 'package:civic_watch/views/citizen/profile_screen.dart';
+import 'package:civic_watch/utils/location_normalizer.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -23,6 +24,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   late AnimationController _scaleController;
   int _selectedIndex = 0;
   String? _userCity;
+  String _userCityNormalized = '';
   bool _isLoadingCity = true;
   String _searchQuery = ''; // Added search query state
 
@@ -46,18 +48,34 @@ class _DashboardScreenState extends State<DashboardScreen>
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-        if (doc.exists && mounted) {
+        if (doc.exists) {
           final data = doc.data() as Map<String, dynamic>;
-          setState(() {
-            _userCity = data['City'] ?? data['city'];
-            _isLoadingCity = false;
-          });
+          final rawCity = data['City'] ?? data['city'];
+          if (mounted) {
+            setState(() {
+              _userCity = LocationNormalizer.toTitleCase(rawCity?.toString());
+              _userCityNormalized =
+                  (data['cityNormalized'] ?? LocationNormalizer.normalize(rawCity?.toString()))
+                      .toString();
+            });
+          }
         }
       }
     } catch (e) {
       debugPrint('Error fetching city: $e');
+    } finally {
       if (mounted) setState(() => _isLoadingCity = false);
     }
+  }
+
+  bool _matchesUserCity(Map<String, dynamic> data) {
+    // If city info is missing on user profile, avoid hard-blocking dashboard data.
+    if (_userCityNormalized.trim().isEmpty) return true;
+
+    final issueNormalized = (data['cityNormalized'] ??
+            LocationNormalizer.normalize((data['City'] ?? data['city'])?.toString()))
+        .toString();
+    return issueNormalized == _userCityNormalized;
   }
 
   @override
@@ -234,7 +252,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     if (shouldLogout == true) {
       await FirebaseAuth.instance.signOut();
-      if (!mounted) return;
+      if (!context.mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
         (route) => false,
@@ -377,11 +395,22 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('issues')
-          .where('City', isEqualTo: _userCity)
-          .snapshots(),
+      stream: FirebaseFirestore.instance.collection('issues').snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Expanded(child: _buildStatCard('0', 'REPORTED', 0)),
+                const SizedBox(width: 12),
+                Expanded(child: _buildStatCard('0', 'RESOLVED', 1)),
+                const SizedBox(width: 12),
+                Expanded(child: _buildStatCard('0', 'IMPACT', 2)),
+              ],
+            ),
+          );
+        }
         if (!snapshot.hasData) {
           // Show loading state or zeros while loading
           return Padding(
@@ -398,21 +427,27 @@ class _DashboardScreenState extends State<DashboardScreen>
           );
         }
 
-        final docs = snapshot.data!.docs;
+        final docs = snapshot.data!.docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return _matchesUserCity(data);
+        }).toList();
         final reportedCount = docs.length;
         final resolvedCount = docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           return data['status'] == 'Done';
         }).length;
         
-        // Calculate impact (e.g., sum of upvotes)
+        // Impact is based on engagement (upvotes + comments).
         int impactCount = 0;
-        for (var doc in docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            // Impact algorithm: 1 point per issue + upvotes + (5 points if resolved)
-            // Or just sum of upvotes as originally planned. Let's do simple sum of upvotes + comments
-            int upvotes = (data['upvotes'] ?? 0) as int;
-            impactCount += upvotes;
+        for (final doc in docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final upvotes = (data['upvotes'] ?? 0) is int
+            ? (data['upvotes'] ?? 0) as int
+            : int.tryParse('${data['upvotes']}') ?? 0;
+          final comments = (data['commentCount'] ?? 0) is int
+            ? (data['commentCount'] ?? 0) as int
+            : int.tryParse('${data['commentCount']}') ?? 0;
+          impactCount += upvotes + comments;
         }
 
         return Padding(
@@ -506,7 +541,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               const SizedBox(width: 16),
               Expanded(child: _buildActionButton('💧', 'Sewage', 1)),
               const SizedBox(width: 16),
-              Expanded(child: _buildActionButton('🚧', 'Broken', 2)),
+                Expanded(child: _buildActionButton('🚧', 'Broken', 2)),
               const SizedBox(width: 16),
               Expanded(child: _buildActionButton('🗑️', 'Dirty', 3)),
             ],
@@ -517,13 +552,28 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildActionButton(String emoji, String label, int index) {
+    final category = switch (label) {
+      'Pothole' => 'Pothole',
+      'Sewage' => 'Sewage',
+      'Broken' => 'Broken Infrastructure',
+      'Dirty' => 'Cleanliness',
+      _ => null,
+    };
+
     return FadeTransition(
       opacity: CurvedAnimation(
         parent: _fadeController,
         curve: Interval(0.3 + (index * 0.05), 1.0, curve: Curves.easeOut),
       ),
       child: GestureDetector(
-        onTap: () {},
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ReportIssueScreen(initialCategory: category),
+            ),
+          );
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 20),
           decoration: BoxDecoration(
@@ -609,16 +659,32 @@ class _DashboardScreenState extends State<DashboardScreen>
              const Center(child: CircularProgressIndicator())
           else
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('issues')
-                .where('City', isEqualTo: _userCity)
-                .snapshots(),
+            stream: FirebaseFirestore.instance.collection('issues').snapshots(),
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                final text = snapshot.error.toString().toLowerCase();
+                final msg = text.contains('permission-denied')
+                    ? 'Issues are blocked by Firestore rules. Publish the latest rules and retry.'
+                    : 'Unable to load issues right now.';
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Text(
+                      msg,
+                      style: const TextStyle(color: Color(0xFF94a3b8)),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final docs = snapshot.data?.docs ?? [];
+              final docs = (snapshot.data?.docs ?? []).where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return _matchesUserCity(data);
+              }).toList();
               if (docs.isEmpty) {
                 return Center(
                   child: Padding(

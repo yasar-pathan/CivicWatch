@@ -1,11 +1,7 @@
 
 import 'package:civic_watch/core/theme/app_theme.dart';
-import 'package:civic_watch/views/authentication/login_screen.dart';
-import 'package:civic_watch/views/authentication/register_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:civic_watch/views/citizen/dashboard_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:civic_watch/views/authentication/splash_screen.dart';
 
 void main() async {
@@ -30,14 +26,5 @@ class MyApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       home: const SplashScreen(),
     );
-  }
-
-  Widget _getHome() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      return const DashboardScreen();
-    } else {
-      return const LoginScreen();
-    }
   }
 }

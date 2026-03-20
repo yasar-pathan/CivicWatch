@@ -1,8 +1,11 @@
-import 'package:civic_watch/views/authentication/register_screen.dart';
+import 'package:civic_watch/views/admin/admin_dashboard.dart'; // Import this
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import this
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:civic_watch/views/authority/city/city_dashboard_screen.dart';
+import 'package:civic_watch/views/authority/state/state_dashboard_screen.dart';
 import 'package:civic_watch/views/citizen/dashboard_screen.dart';
-import 'package:civic_watch/views/authentication/register_screen.dart'; // ✅ FIX 1
+import 'package:civic_watch/views/authentication/register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -38,19 +41,133 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    // ----------------------------------------------------
+    // HARDCODED ADMIN BYPASS
+    // ----------------------------------------------------
+    if (email == 'admin.civicwatch@gmail.com' &&
+        password == 'civicwatchAdmin') {
+      try {
+        // Try to login normally
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } catch (e) {
+        // If user not found, create it
+        try {
+          final cred =
+              await FirebaseAuth.instance.createUserWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+          
+          // Try to set Firestore doc (might fail due to permissions but that's ok for local access)
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(cred.user!.uid)
+              .set({
+            'uid': cred.user!.uid,
+            'email': email,
+            'name': 'System Administrator',
+            'role': 'admin',
+            'status': 'approved',
+            'isActive': true,
+            'createdAt': FieldValue.serverTimestamp(),
+          }).catchError((e) {
+             debugPrint("Admin Firestore setup failed (permissions?): $e");
+          });
+
+        } catch (createError) {
+           debugPrint("Admin creation failed: $createError");
+           // Proceed if user exists but login failed previously for some reason
+        }
+      }
+
+      // FORCE NAVIGATE TO ADMIN DASHBOARD
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+        (_) => false,
+      );
+      return;
+    }
+    // ----------------------------------------------------
+
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      final userCredential =
+          await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
       );
 
       if (!mounted) return;
 
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const DashboardScreen()),
-        (_) => false,
-      );
+      final uid = userCredential.user!.uid;
+
+      // Fetch user role from Firestore
+      final userDoc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+
+      if (!userDoc.exists) {
+        // Handle case where user is authenticated but has no Firestore document
+        // Optionally create one or show error. For now, assume citizen.
+         if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const DashboardScreen()),
+            (_) => false,
+          );
+        }
+        return;
+      }
+
+      final userData = userDoc.data()!;
+      final userRole = userData['role'] ?? 'citizen';
+      final userStatus = userData['status'] ?? 'approved';
+      final isActive = userData['isActive'] != false;
+
+      if (!mounted) return;
+
+      if (!isActive) {
+        setState(() => _firebaseError = 'Account is deactivated. Contact admin.');
+        await FirebaseAuth.instance.signOut();
+      } else
+      if (userRole == 'admin') {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+          (_) => false,
+        );
+      } else if (userStatus == 'pending_approval') {
+        setState(() => _firebaseError = 'Account is pending approval.');
+        await FirebaseAuth.instance.signOut();
+      } else if (userStatus == 'rejected') {
+        setState(() => _firebaseError = 'Account registration rejected.');
+        await FirebaseAuth.instance.signOut();
+      } else if (userRole == 'state_authority' && userStatus == 'approved') {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const StateDashboardScreen()),
+          (_) => false,
+        );
+      } else if (userRole == 'city_authority' && userStatus == 'approved') {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const CityDashboardScreen()),
+          (_) => false,
+        );
+      } else {
+        // Default to Citizen Dashboard
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const DashboardScreen()),
+          (_) => false,
+        );
+      }
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       setState(() => _firebaseError = e.message);

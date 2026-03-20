@@ -1,0 +1,162 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDocExists() {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Bootstrap fallback for hardcoded admin during initial provisioning.
+    function isBootstrapAdmin() {
+      return isSignedIn() &&
+             request.auth.token.email == 'admin.civicwatch@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrapAdmin() ||
+             (userDocExists() &&
+              userData().role == 'admin' &&
+              userData().status == 'approved');
+    }
+
+    function isStateAuthority() {
+      return userDocExists() &&
+             userData().role == 'state_authority' &&
+             userData().status == 'approved' &&
+             userData().isActive != false;
+    }
+
+    function isCityAuthority() {
+      return userDocExists() &&
+             userData().role == 'city_authority' &&
+             userData().status == 'approved' &&
+             userData().isActive != false;
+    }
+
+    function myState() {
+      return userData().state;
+    }
+
+    function myCity() {
+      return userData().city;
+    }
+
+    function myCityNormalized() {
+      return userData().cityNormalized;
+    }
+
+    function issueBelongsToMyState(issueData) {
+      return isStateAuthority() &&
+             issueData.state is string &&
+             issueData.state == myState();
+    }
+
+    function issueBelongsToMyCity(issueData) {
+      return isCityAuthority() &&
+             (
+               (issueData.cityNormalized is string &&
+                issueData.cityNormalized == myCityNormalized()) ||
+               (issueData.City is string && issueData.City == myCity()) ||
+               (issueData.city is string && issueData.city == myCity())
+             );
+    }
+
+    // Users collection rules
+    match /users/{userId} {
+      // Admin can read all users. State authorities can read city authorities in their state.
+      allow read: if isAdmin() ||
+                  (isSignedIn() && request.auth.uid == userId) ||
+                  (isStateAuthority() &&
+                   resource.data.role == 'city_authority' &&
+                   resource.data.state == myState());
+
+      // Admin can create any non-admin user. Citizens can self-register.
+      // State authorities can create approved city authority users in their own state.
+      allow create: if (isAdmin() && request.resource.data.role != 'admin') ||
+                    (isSignedIn() &&
+                     request.auth.uid == userId &&
+                     request.resource.data.role == 'citizen') ||
+                    (isStateAuthority() &&
+                     request.resource.data.role == 'city_authority' &&
+                     request.resource.data.state == myState());
+
+      // Admin has full control. State authority can manage city authorities in own state.
+      // Users can do limited self-update without changing role/status.
+      allow update, delete: if isAdmin() ||
+                            (isStateAuthority() &&
+                             resource.data.role == 'city_authority' &&
+                             resource.data.state == myState() &&
+                             request.resource.data.role == 'city_authority' &&
+                             request.resource.data.state == myState()) ||
+                            (isSignedIn() &&
+                             request.auth.uid == userId &&
+                             request.resource.data.role == resource.data.role &&
+                             request.resource.data.status == resource.data.status);
+
+      // Per-user notifications (self-read/write, admin full access).
+      match /notifications/{notificationId} {
+        allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      }
+    }
+
+    // Issues collection rules
+    match /issues/{issueId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+
+      // Admin can manage any issue. Citizens can edit their own issues.
+      // State authorities can update issues that belong to their state.
+      allow update: if isAdmin() ||
+                    issueBelongsToMyState(resource.data) ||
+                    (isSignedIn() && resource.data.userId == request.auth.uid) ||
+                    (
+                      issueBelongsToMyCity(resource.data) &&
+                      request.resource.data.userId == resource.data.userId
+                    );
+
+      allow delete: if isAdmin();
+
+      // State actions/comments on escalated issues.
+      match /state_actions/{actionId} {
+        allow read: if isSignedIn();
+        allow create: if isAdmin() ||
+                      issueBelongsToMyState(get(/databases/$(database)/documents/issues/$(issueId)).data);
+        allow update, delete: if isAdmin();
+      }
+
+      // Public comments/updates on issue threads.
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if isAdmin() ||
+                              (isSignedIn() && resource.data.authorId == request.auth.uid);
+      }
+    }
+
+    // Activity Logs collection rules
+    match /activity_logs/{logId} {
+      // Admin can read/write all logs.
+      // State authority can create/read only their own logs.
+      allow read: if isAdmin() ||
+                  (isStateAuthority() && resource.data.adminId == request.auth.uid) ||
+                  (isCityAuthority() && resource.data.actorId == request.auth.uid);
+
+      allow create: if isAdmin() ||
+                    (isStateAuthority() && request.resource.data.adminId == request.auth.uid) ||
+                    (isCityAuthority() &&
+                     request.resource.data.actorId == request.auth.uid &&
+                     request.resource.data.actorRole == 'city_authority');
+
+      allow update, delete: if isAdmin();
+    }
+  }
+}

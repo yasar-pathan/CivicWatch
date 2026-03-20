@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:civic_watch/utils/location_normalizer.dart';
 import 'package:civic_watch/views/citizen/dashboard_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -42,6 +43,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
     if (_formKey.currentState!.validate()) {
       try {
+        final normalizedCity =
+            LocationNormalizer.normalize(_cityController.text);
+        final displayCity =
+            LocationNormalizer.toTitleCase(_cityController.text);
+
         UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
@@ -53,8 +59,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'name': _nameController.text.trim(),
           'email': _emailController.text.trim(),
           'phone': _phoneController.text.trim(),
-          'City': _cityController.text.trim(), // Storing as 'City' to match requirement
+          'City': displayCity,
+          'city': displayCity,
+          'cityNormalized': normalizedCity,
           'role': 'citizen',
+          'status': 'approved',
+          'isActive': true,
+          'totalLogins': 0,
           'createdAt': FieldValue.serverTimestamp(),
         });
 

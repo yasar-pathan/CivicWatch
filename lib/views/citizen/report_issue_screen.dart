@@ -7,10 +7,12 @@ import 'package:geocoding/geocoding.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:civic_watch/utils/location_normalizer.dart';
 
 class ReportIssueScreen extends StatefulWidget {
   final bool isTab;
-  const ReportIssueScreen({super.key, this.isTab = false});
+  final String? initialCategory;
+  const ReportIssueScreen({super.key, this.isTab = false, this.initialCategory});
 
   @override
   State<ReportIssueScreen> createState() => _ReportIssueScreenState();
@@ -64,6 +66,16 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
     );
     
     _fadeController.forward();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.initialCategory != null &&
+        _categories.contains(widget.initialCategory) &&
+        _selectedCategory == null) {
+      _selectedCategory = widget.initialCategory;
+    }
   }
   
   @override
@@ -301,15 +313,14 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
       
       // Fetch user details for City
       String city = 'Unknown';
+      String cityNormalized = '';
       try {
         DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
         if (userDoc.exists && userDoc.data() != null) {
           final data = userDoc.data() as Map<String, dynamic>;
-          if (data.containsKey('City')) {
-            city = data['City'];
-          } else if (data.containsKey('city')) {
-             city = data['city'];
-          }
+          final rawCity = data['City'] ?? data['city'];
+          city = LocationNormalizer.toTitleCase(rawCity);
+          cityNormalized = data['cityNormalized'] ?? LocationNormalizer.normalize(rawCity);
         }
       } catch (e) {
         debugPrint('Error fetching user city: $e');
@@ -326,6 +337,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
         'longitude': _currentPosition!.longitude,
         'address': _locationText,
         'City': city,
+        'cityNormalized': cityNormalized,
         'status': 'Reported',
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
