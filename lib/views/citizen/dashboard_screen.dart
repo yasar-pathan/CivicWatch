@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -24,6 +23,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   late AnimationController _scaleController;
   int _selectedIndex = 0;
   String? _userCity;
+  String _userName = 'Citizen';
   String _userCityNormalized = '';
   bool _isLoadingCity = true;
   String _searchQuery = ''; // Added search query state
@@ -47,16 +47,27 @@ class _DashboardScreenState extends State<DashboardScreen>
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
         if (doc.exists) {
           final data = doc.data() as Map<String, dynamic>;
           final rawCity = data['City'] ?? data['city'];
+          final rawName =
+              (data['name'] ?? data['fullName'] ?? data['displayName'] ?? '')
+                  .toString()
+                  .trim();
           if (mounted) {
             setState(() {
               _userCity = LocationNormalizer.toTitleCase(rawCity?.toString());
               _userCityNormalized =
-                  (data['cityNormalized'] ?? LocationNormalizer.normalize(rawCity?.toString()))
+                  (data['cityNormalized'] ??
+                          LocationNormalizer.normalize(rawCity?.toString()))
                       .toString();
+              _userName = rawName.isNotEmpty
+                  ? rawName
+                  : (user.email?.split('@').first ?? 'Citizen');
             });
           }
         }
@@ -72,9 +83,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     // If city info is missing on user profile, avoid hard-blocking dashboard data.
     if (_userCityNormalized.trim().isEmpty) return true;
 
-    final issueNormalized = (data['cityNormalized'] ??
-            LocationNormalizer.normalize((data['City'] ?? data['city'])?.toString()))
-        .toString();
+    final issueNormalized =
+        (data['cityNormalized'] ??
+                LocationNormalizer.normalize(
+                  (data['City'] ?? data['city'])?.toString(),
+                ))
+            .toString();
     return issueNormalized == _userCityNormalized;
   }
 
@@ -98,20 +112,20 @@ class _DashboardScreenState extends State<DashboardScreen>
         builder: (context) => IssueDetailScreen(
           issueId: issue.issueId,
           data: {
-             'id': issue.issueId,
-             'title': issue.title,
-             'description': issue.description,
-             'photoUrl': issue.photoUrl,
-             'category': issue.category,
-             'address': issue.address,
-             'latitude': issue.latitude,
-             'longitude': issue.longitude,
-             'status': issue.status,
-             'upvotes': issue.upvotes,
-             'commentCount': issue.commentCount,
-             'userId': issue.userId,
-             'createdAt': issue.createdAt,
-             'City': _userCity, // Ensure city is passed if needed
+            'id': issue.issueId,
+            'title': issue.title,
+            'description': issue.description,
+            'photoUrl': issue.photoUrl,
+            'category': issue.category,
+            'address': issue.address,
+            'latitude': issue.latitude,
+            'longitude': issue.longitude,
+            'status': issue.status,
+            'upvotes': issue.upvotes,
+            'commentCount': issue.commentCount,
+            'userId': issue.userId,
+            'createdAt': issue.createdAt,
+            'City': _userCity, // Ensure city is passed if needed
           },
         ),
       ),
@@ -128,19 +142,21 @@ class _DashboardScreenState extends State<DashboardScreen>
       backgroundColor: const Color(0xFF0f172a),
       // App bar only for Home mainly to show Logout?
       // Or move Logout to Profile.
-      appBar: _selectedIndex == 0 ? AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: () async {
-              await _logout(context);
-            },
-            tooltip: 'Logout',
-          ),
-        ],
-      ) : null,
+      appBar: _selectedIndex == 0
+          ? AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  onPressed: () async {
+                    await _logout(context);
+                  },
+                  tooltip: 'Logout',
+                ),
+              ],
+            )
+          : null,
       body: Stack(
         children: [
           // Background for tabs that need it (Dashboard, Profile etc)
@@ -150,19 +166,10 @@ class _DashboardScreenState extends State<DashboardScreen>
 
           // FAB only on Dashboard
           if (_selectedIndex == 0)
-            Positioned(
-              bottom: 90,
-              right: 20,
-              child: _buildFAB(),
-            ),
+            Positioned(bottom: 90, right: 20, child: _buildFAB()),
 
           // Bottom Navigation
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: _buildBottomNav(),
-          ),
+          Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomNav()),
         ],
       ),
     );
@@ -177,8 +184,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         // we might have issues.
         // But let's try.
         return const Padding(
-           padding: EdgeInsets.only(bottom: 70), // Space for bottom nav
-           child: MyReportsScreen(),
+          padding: EdgeInsets.only(bottom: 70), // Space for bottom nav
+          child: MyReportsScreen(),
         );
       case 2:
         return const MapViewScreen();
@@ -186,39 +193,38 @@ class _DashboardScreenState extends State<DashboardScreen>
         // Pass isTab: true to hide the back button and adjust layout
         return const ReportIssueScreen(isTab: true);
       case 4:
-         return const ProfileScreen();
+        return const ProfileScreen();
       default:
         return _buildDashboardTab();
     }
   }
 
   Widget _buildDashboardTab() {
-     return SafeArea(
-            child: Column(
-              children: [
-                // Header
-                _buildHeader(), // Include Header in dashboard tab
-                
-                // Scrollable content
-                Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 24),
-                        _buildStatsCards(),
-                        const SizedBox(height: 24),
-                        _buildQuickActions(),
-                        const SizedBox(height: 24),
-                        _buildRecentIssues(),
-                        const SizedBox(height: 100), // Bottom nav padding
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+    return SafeArea(
+      child: Column(
+        children: [
+          // Header
+          _buildHeader(), // Include Header in dashboard tab
+          // Scrollable content
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                children: [
+                  const SizedBox(height: 24),
+                  _buildStatsCards(),
+                  const SizedBox(height: 24),
+                  _buildQuickActions(),
+                  const SizedBox(height: 24),
+                  _buildRecentIssues(),
+                  const SizedBox(height: 100), // Bottom nav padding
+                ],
+              ),
             ),
-          );
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -235,15 +241,19 @@ class _DashboardScreenState extends State<DashboardScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel',
-                style: TextStyle(color: Color(0xFF94a3b8))),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Color(0xFF94a3b8)),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text(
               'Logout',
               style: TextStyle(
-                  color: Colors.redAccent, fontWeight: FontWeight.bold),
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -262,9 +272,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildAnimatedBackground() {
     return Positioned.fill(
-      child: CustomPaint(
-        painter: GradientBackgroundPainter(),
-      ),
+      child: CustomPaint(painter: GradientBackgroundPainter()),
     );
   }
 
@@ -314,7 +322,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                   children: [
                     _buildIconButton(Icons.search),
                     const SizedBox(width: 12),
-                    _buildIconButton(Icons.notifications, hasNotification: true),
+                    _buildIconButton(
+                      Icons.notifications,
+                      hasNotification: true,
+                    ),
                   ],
                 ),
               ],
@@ -324,8 +335,8 @@ class _DashboardScreenState extends State<DashboardScreen>
               shaderCallback: (bounds) => const LinearGradient(
                 colors: [Color(0xFF6366f1), Color(0xFFec4899)],
               ).createShader(bounds),
-              child: const Text(
-                'Hey, Yasar! 👋',
+              child: Text(
+                'Hey, $_userName! 👋',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
@@ -336,10 +347,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             const SizedBox(height: 8),
             Text(
               "Let's make our city better together",
-              style: TextStyle(
-                color: const Color(0xFF94a3b8),
-                fontSize: 15,
-              ),
+              style: TextStyle(color: const Color(0xFF94a3b8), fontSize: 15),
             ),
           ],
         ),
@@ -393,7 +401,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
       );
     }
-  
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('issues').snapshots(),
       builder: (context, snapshot) {
@@ -436,17 +444,17 @@ class _DashboardScreenState extends State<DashboardScreen>
           final data = doc.data() as Map<String, dynamic>;
           return data['status'] == 'Done';
         }).length;
-        
+
         // Impact is based on engagement (upvotes + comments).
         int impactCount = 0;
         for (final doc in docs) {
           final data = doc.data() as Map<String, dynamic>;
           final upvotes = (data['upvotes'] ?? 0) is int
-            ? (data['upvotes'] ?? 0) as int
-            : int.tryParse('${data['upvotes']}') ?? 0;
+              ? (data['upvotes'] ?? 0) as int
+              : int.tryParse('${data['upvotes']}') ?? 0;
           final comments = (data['commentCount'] ?? 0) is int
-            ? (data['commentCount'] ?? 0) as int
-            : int.tryParse('${data['commentCount']}') ?? 0;
+              ? (data['commentCount'] ?? 0) as int
+              : int.tryParse('${data['commentCount']}') ?? 0;
           impactCount += upvotes + comments;
         }
 
@@ -454,11 +462,17 @@ class _DashboardScreenState extends State<DashboardScreen>
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             children: [
-              Expanded(child: _buildStatCard(reportedCount.toString(), 'REPORTED', 0)),
+              Expanded(
+                child: _buildStatCard(reportedCount.toString(), 'REPORTED', 0),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _buildStatCard(resolvedCount.toString(), 'RESOLVED', 1)),
+              Expanded(
+                child: _buildStatCard(resolvedCount.toString(), 'RESOLVED', 1),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _buildStatCard(impactCount.toString(), 'IMPACT', 2)),
+              Expanded(
+                child: _buildStatCard(impactCount.toString(), 'IMPACT', 2),
+              ),
             ],
           ),
         );
@@ -473,13 +487,17 @@ class _DashboardScreenState extends State<DashboardScreen>
         curve: Interval(0.2 + (index * 0.1), 1.0, curve: Curves.easeOut),
       ),
       child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 0.3),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(
-          parent: _fadeController,
-          curve: Interval(0.2 + (index * 0.1), 1.0, curve: Curves.easeOut),
-        )),
+        position: Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
+            .animate(
+              CurvedAnimation(
+                parent: _fadeController,
+                curve: Interval(
+                  0.2 + (index * 0.1),
+                  1.0,
+                  curve: Curves.easeOut,
+                ),
+              ),
+            ),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
           decoration: BoxDecoration(
@@ -541,7 +559,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               const SizedBox(width: 16),
               Expanded(child: _buildActionButton('💧', 'Sewage', 1)),
               const SizedBox(width: 16),
-                Expanded(child: _buildActionButton('🚧', 'Broken', 2)),
+              Expanded(child: _buildActionButton('🚧', 'Broken', 2)),
               const SizedBox(width: 16),
               Expanded(child: _buildActionButton('🗑️', 'Dirty', 3)),
             ],
@@ -627,7 +645,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ],
           ),
-          
+
           const SizedBox(height: 16),
 
           // Search Bar
@@ -642,112 +660,128 @@ class _DashboardScreenState extends State<DashboardScreen>
               style: const TextStyle(color: Color(0xFFf1f5f9)),
               decoration: const InputDecoration(
                 hintText: '🔍 Search Issues...',
-                hintStyle: TextStyle(
-                  color: Color(0xFF64748b),
-                  fontSize: 15,
-                ),
+                hintStyle: TextStyle(color: Color(0xFF64748b), fontSize: 15),
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.symmetric(vertical: 14),
               ),
               onChanged: (value) => _filterIssues(value),
             ),
           ),
-          
+
           const SizedBox(height: 16),
 
           if (_isLoadingCity)
-             const Center(child: CircularProgressIndicator())
+            const Center(child: CircularProgressIndicator())
           else
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('issues').snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                final text = snapshot.error.toString().toLowerCase();
-                final msg = text.contains('permission-denied')
-                    ? 'Issues are blocked by Firestore rules. Publish the latest rules and retry.'
-                    : 'Unable to load issues right now.';
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Text(
-                      msg,
-                      style: const TextStyle(color: Color(0xFF94a3b8)),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                );
-              }
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              final docs = (snapshot.data?.docs ?? []).where((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                return _matchesUserCity(data);
-              }).toList();
-              if (docs.isEmpty) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Text(
-                      'No issues reported in $_userCity yet',
-                      style: TextStyle(
-                        color: const Color(0xFF94a3b8).withOpacity(0.5),
-                        fontStyle: FontStyle.italic,
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('issues')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  final text = snapshot.error.toString().toLowerCase();
+                  final msg = text.contains('permission-denied')
+                      ? 'Issues are blocked by Firestore rules. Publish the latest rules and retry.'
+                      : 'Unable to load issues right now.';
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Text(
+                        msg,
+                        style: const TextStyle(color: Color(0xFF94a3b8)),
+                        textAlign: TextAlign.center,
                       ),
                     ),
-                  ),
-                );
-              }
-              
-              // Filter docs based on search query
-              var filteredDocs = docs;
-              if (_searchQuery.isNotEmpty) {
-                final q = _searchQuery.toLowerCase();
-                filteredDocs = docs.where((doc) {
+                  );
+                }
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final docs = (snapshot.data?.docs ?? []).where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
-                  final title = (data['title'] ?? '').toString().toLowerCase();
-                  final category = (data['category'] ?? '').toString().toLowerCase();
-                  final status = (data['status'] ?? '').toString().toLowerCase();
-                  return title.contains(q) || category.contains(q) || status.contains(q);
+                  return _matchesUserCity(data);
                 }).toList();
-              }
-
-              if (filteredDocs.isEmpty) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(20.0),
-                    child: Text(
-                      'No matching issues found',
-                      style: TextStyle(color: Color(0xFF94a3b8)),
+                if (docs.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Text(
+                        'No issues reported in $_userCity yet',
+                        style: TextStyle(
+                          color: const Color(0xFF94a3b8).withOpacity(0.5),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
                     ),
-                  ),
+                  );
+                }
+
+                // Filter docs based on search query
+                var filteredDocs = docs;
+                if (_searchQuery.isNotEmpty) {
+                  final q = _searchQuery.toLowerCase();
+                  filteredDocs = docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final title = (data['title'] ?? '')
+                        .toString()
+                        .toLowerCase();
+                    final category = (data['category'] ?? '')
+                        .toString()
+                        .toLowerCase();
+                    final status = (data['status'] ?? '')
+                        .toString()
+                        .toLowerCase();
+                    return title.contains(q) ||
+                        category.contains(q) ||
+                        status.contains(q);
+                  }).toList();
+                }
+
+                if (filteredDocs.isEmpty) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: Text(
+                        'No matching issues found',
+                        style: TextStyle(color: Color(0xFF94a3b8)),
+                      ),
+                    ),
+                  );
+                }
+
+                // Client-side sort and limit
+                final sortedDocs =
+                    List<QueryDocumentSnapshot>.from(filteredDocs)
+                      ..sort((a, b) {
+                        final aTime =
+                            (a.data() as Map<String, dynamic>)['createdAt']
+                                as Timestamp?;
+                        final bTime =
+                            (b.data() as Map<String, dynamic>)['createdAt']
+                                as Timestamp?;
+                        if (aTime == null) return 1;
+                        if (bTime == null) return -1;
+                        return bTime.compareTo(aTime);
+                      });
+
+                final recentDocs = sortedDocs
+                    .take(10)
+                    .toList(); // Show more with search
+
+                return Column(
+                  children: recentDocs.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final doc = entry.value;
+                    final issue = Issue.fromFirestore(
+                      doc,
+                    ); // Convert to Issue model
+
+                    return _buildIssueCard(issue, index);
+                  }).toList(),
                 );
-              }
-
-              // Client-side sort and limit
-              final sortedDocs = List<QueryDocumentSnapshot>.from(filteredDocs)
-                ..sort((a, b) {
-                  final aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
-                  final bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
-                  if (aTime == null) return 1;
-                  if (bTime == null) return -1;
-                  return bTime.compareTo(aTime);
-                });
-              
-              final recentDocs = sortedDocs.take(10).toList(); // Show more with search
-
-              return Column(
-                children: recentDocs.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final doc = entry.value;
-                  final issue = Issue.fromFirestore(doc); // Convert to Issue model
-
-                  return _buildIssueCard(issue, index);
-                }).toList(),
-              );
-            },
-          ),
+              },
+            ),
         ],
       ),
     );
@@ -760,13 +794,17 @@ class _DashboardScreenState extends State<DashboardScreen>
         curve: Interval(0.3 + (index * 0.1), 1.0, curve: Curves.easeOut),
       ),
       child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 0.3),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(
-          parent: _fadeController,
-          curve: Interval(0.3 + (index * 0.1), 1.0, curve: Curves.easeOut),
-        )),
+        position: Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
+            .animate(
+              CurvedAnimation(
+                parent: _fadeController,
+                curve: Interval(
+                  0.3 + (index * 0.1),
+                  1.0,
+                  curve: Curves.easeOut,
+                ),
+              ),
+            ),
         child: GestureDetector(
           onTap: () => _navigateToIssueDetail(issue),
           child: Container(
@@ -774,7 +812,9 @@ class _DashboardScreenState extends State<DashboardScreen>
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: const Color(0xFF1e293b), // Dashboard card color
-              border: Border.all(color: const Color(0xFF334155)), // Dashboard border
+              border: Border.all(
+                color: const Color(0xFF334155),
+              ), // Dashboard border
               borderRadius: BorderRadius.circular(20), // Dashboard radius
             ),
             child: Column(
@@ -798,10 +838,23 @@ class _DashboardScreenState extends State<DashboardScreen>
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: issue.photoUrl.isNotEmpty
-                      ? Image.network(
-                          issue.photoUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Center(
+                        ? Image.network(
+                            issue.photoUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        _getCategoryEmoji(issue.category),
+                                        style: const TextStyle(fontSize: 48),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                          )
+                        : Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -809,34 +862,22 @@ class _DashboardScreenState extends State<DashboardScreen>
                                   _getCategoryEmoji(issue.category),
                                   style: const TextStyle(fontSize: 48),
                                 ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  '[Issue Photo]',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF64748b),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
-                        )
-                      : Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                _getCategoryEmoji(issue.category),
-                                style: const TextStyle(fontSize: 48),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                '[Issue Photo]',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF64748b),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Title
                 Text(
                   issue.title,
@@ -849,9 +890,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                
+
                 const SizedBox(height: 12),
-                
+
                 // Location & Time Row
                 Row(
                   children: [
@@ -863,7 +904,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        issue.address.isNotEmpty ? issue.address : 'Unknown Location', 
+                        issue.address.isNotEmpty
+                            ? issue.address
+                            : 'Unknown Location',
                         style: const TextStyle(
                           fontSize: 14,
                           color: Color(0xFF94a3b8),
@@ -874,10 +917,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                     const Text(
                       ' • ',
-                      style: TextStyle(
-                        color: Color(0xFF64748b),
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Color(0xFF64748b), fontSize: 14),
                     ),
                     Text(
                       _getTimeAgo(issue.createdAt),
@@ -888,12 +928,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 12),
-                
+
                 // Status Badge (EXACT dashboard badge)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: _getStatusColor(issue.status).withOpacity(0.1),
                     border: Border.all(
@@ -921,17 +964,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ],
                   ),
                 ),
-                
+
                 const SizedBox(height: 12),
-                
+
                 // Divider (same as dashboard)
-                Container(
-                  height: 1,
-                  color: const Color(0xFF334155),
-                ),
-                
+                Container(height: 1, color: const Color(0xFF334155)),
+
                 const SizedBox(height: 12),
-                
+
                 // Stats Row (Upvotes & Comments)
                 Row(
                   children: [
@@ -978,46 +1018,65 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // Helper: Get status color (EXACT dashboard colors)
   Color _getStatusColor(String status) {
-    switch(status) {
-      case 'Reported': return const Color(0xFFef4444);
-      case 'Recognized': return const Color(0xFFf59e0b);
-      case 'InWork': return const Color(0xFF3b82f6);
-      case 'Done': return const Color(0xFF10b981);
-      default: return const Color(0xFF64748b);
+    switch (status) {
+      case 'Reported':
+        return const Color(0xFFef4444);
+      case 'Recognized':
+        return const Color(0xFFf59e0b);
+      case 'InWork':
+        return const Color(0xFF3b82f6);
+      case 'Done':
+        return const Color(0xFF10b981);
+      default:
+        return const Color(0xFF64748b);
     }
   }
 
   // Helper: Get status emoji
   String _getStatusEmoji(String status) {
-    switch(status) {
-      case 'Reported': return '🔴';
-      case 'Recognized': return '🟡';
-      case 'InWork': return '🔵';
-      case 'Done': return '🟢';
-      default: return '⚪';
+    switch (status) {
+      case 'Reported':
+        return '🔴';
+      case 'Recognized':
+        return '🟡';
+      case 'InWork':
+        return '🔵';
+      case 'Done':
+        return '🟢';
+      default:
+        return '⚪';
     }
   }
 
   // Helper: Get category emoji
   String _getCategoryEmoji(String category) {
-    switch(category.toLowerCase()) {
-      case 'pothole': return '🕳️';
-      case 'sewage': return '💧';
-      case 'broken': return '🚧';
-      case 'cleanliness': return '🗑️';
-      default: return '📍';
+    switch (category.toLowerCase()) {
+      case 'pothole':
+        return '🕳️';
+      case 'sewage':
+        return '💧';
+      case 'broken':
+        return '🚧';
+      case 'cleanliness':
+        return '🗑️';
+      default:
+        return '📍';
     }
   }
 
   // Helper: Get time ago
   String _getTimeAgo(DateTime dateTime) {
     Duration diff = DateTime.now().difference(dateTime);
-    
-    if (diff.inDays > 0) return '${diff.inDays} ${diff.inDays == 1 ? "day" : "days"} ago';
-    if (diff.inHours > 0) return '${diff.inHours} ${diff.inHours == 1 ? "hour" : "hours"} ago';
-    if (diff.inMinutes > 0) return '${diff.inMinutes} ${diff.inMinutes == 1 ? "minute" : "minutes"} ago';
+
+    if (diff.inDays > 0)
+      return '${diff.inDays} ${diff.inDays == 1 ? "day" : "days"} ago';
+    if (diff.inHours > 0)
+      return '${diff.inHours} ${diff.inHours == 1 ? "hour" : "hours"} ago';
+    if (diff.inMinutes > 0)
+      return '${diff.inMinutes} ${diff.inMinutes == 1 ? "minute" : "minutes"} ago';
     return 'Just now';
   }
+
   Widget _buildFAB() {
     return ScaleTransition(
       scale: CurvedAnimation(
@@ -1049,11 +1108,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ],
           ),
-          child: const Icon(
-            Icons.add,
-            color: Colors.white,
-            size: 32,
-          ),
+          child: const Icon(Icons.add, color: Colors.white, size: 32),
         ),
       ),
     );
@@ -1063,9 +1118,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF1e293b).withOpacity(0.95),
-        border: const Border(
-          top: BorderSide(color: Color(0xFF334155)),
-        ),
+        border: const Border(top: BorderSide(color: Color(0xFF334155))),
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(40),
           topRight: Radius.circular(40),
@@ -1148,15 +1201,18 @@ class GradientBackgroundPainter extends CustomPainter {
     final paint = Paint()..style = PaintingStyle.fill;
 
     // First gradient circle
-    paint.shader = RadialGradient(
-      colors: [
-        const Color(0xFF6366f1).withOpacity(0.15),
-        Colors.transparent,
-      ],
-    ).createShader(Rect.fromCircle(
-      center: Offset(size.width * 0.2, size.height * 0.3),
-      radius: size.width * 0.4,
-    ));
+    paint.shader =
+        RadialGradient(
+          colors: [
+            const Color(0xFF6366f1).withOpacity(0.15),
+            Colors.transparent,
+          ],
+        ).createShader(
+          Rect.fromCircle(
+            center: Offset(size.width * 0.2, size.height * 0.3),
+            radius: size.width * 0.4,
+          ),
+        );
     canvas.drawCircle(
       Offset(size.width * 0.2, size.height * 0.3),
       size.width * 0.4,
@@ -1164,15 +1220,18 @@ class GradientBackgroundPainter extends CustomPainter {
     );
 
     // Second gradient circle
-    paint.shader = RadialGradient(
-      colors: [
-        const Color(0xFFec4899).withOpacity(0.1),
-        Colors.transparent,
-      ],
-    ).createShader(Rect.fromCircle(
-      center: Offset(size.width * 0.8, size.height * 0.7),
-      radius: size.width * 0.4,
-    ));
+    paint.shader =
+        RadialGradient(
+          colors: [
+            const Color(0xFFec4899).withOpacity(0.1),
+            Colors.transparent,
+          ],
+        ).createShader(
+          Rect.fromCircle(
+            center: Offset(size.width * 0.8, size.height * 0.7),
+            radius: size.width * 0.4,
+          ),
+        );
     canvas.drawCircle(
       Offset(size.width * 0.8, size.height * 0.7),
       size.width * 0.4,
@@ -1180,15 +1239,18 @@ class GradientBackgroundPainter extends CustomPainter {
     );
 
     // Third gradient circle
-    paint.shader = RadialGradient(
-      colors: [
-        const Color(0xFFf59e0b).withOpacity(0.08),
-        Colors.transparent,
-      ],
-    ).createShader(Rect.fromCircle(
-      center: Offset(size.width * 0.5, size.height * 0.5),
-      radius: size.width * 0.5,
-    ));
+    paint.shader =
+        RadialGradient(
+          colors: [
+            const Color(0xFFf59e0b).withOpacity(0.08),
+            Colors.transparent,
+          ],
+        ).createShader(
+          Rect.fromCircle(
+            center: Offset(size.width * 0.5, size.height * 0.5),
+            radius: size.width * 0.5,
+          ),
+        );
     canvas.drawCircle(
       Offset(size.width * 0.5, size.height * 0.5),
       size.width * 0.5,

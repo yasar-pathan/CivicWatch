@@ -12,17 +12,22 @@ import 'package:civic_watch/utils/location_normalizer.dart';
 class ReportIssueScreen extends StatefulWidget {
   final bool isTab;
   final String? initialCategory;
-  const ReportIssueScreen({super.key, this.isTab = false, this.initialCategory});
+  const ReportIssueScreen({
+    super.key,
+    this.isTab = false,
+    this.initialCategory,
+  });
 
   @override
   State<ReportIssueScreen> createState() => _ReportIssueScreenState();
 }
 
-class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTickerProviderStateMixin {
+class _ReportIssueScreenState extends State<ReportIssueScreen>
+    with SingleTickerProviderStateMixin {
   // Controllers
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  
+
   // State
   File? _imageFile;
   final ImagePicker _picker = ImagePicker();
@@ -32,15 +37,15 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
   bool _locationError = false;
   String? _selectedCategory;
   bool _isSubmitting = false;
-  
+
   // Validation
   bool _titleError = false;
   bool _descriptionError = false;
-  
+
   // Animation
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
-  
+
   final List<String> _categories = [
     'Pothole',
     'Sewage',
@@ -53,18 +58,18 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
     super.initState();
     _playAnimations();
   }
-  
+
   void _playAnimations() {
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    
+
     _fadeAnimation = CurvedAnimation(
       parent: _fadeController,
       curve: Curves.easeIn,
     );
-    
+
     _fadeController.forward();
   }
 
@@ -77,7 +82,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
       _selectedCategory = widget.initialCategory;
     }
   }
-  
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -95,7 +100,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
         maxHeight: 1080,
         imageQuality: 85,
       );
-      
+
       if (image != null) {
         setState(() {
           _imageFile = File(image.path);
@@ -121,15 +126,24 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt, color: Color(0xFF6366f1)),
-              title: const Text('Take Photo', style: TextStyle(color: Colors.white)),
+              title: const Text(
+                'Take Photo',
+                style: TextStyle(color: Colors.white),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.camera);
               },
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library, color: Color(0xFF6366f1)),
-              title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
+              leading: const Icon(
+                Icons.photo_library,
+                color: Color(0xFF6366f1),
+              ),
+              title: const Text(
+                'Choose from Gallery',
+                style: TextStyle(color: Colors.white),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.gallery);
@@ -156,18 +170,18 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
         // Some plugins allow opening settings
         bool opened = await Geolocator.openLocationSettings();
         if (opened) {
-             // Wait for user to toggle? It's async. We might just fail and ask them to retry.
+          // Wait for user to toggle? It's async. We might just fail and ask them to retry.
         }
-        
+
         serviceEnabled = await Geolocator.isLocationServiceEnabled();
-         if (!serviceEnabled) {
-             setState(() {
-                _locationText = 'Location services disabled. Tap to retry.';
-                _locationError = true;
-                _fetchingLocation = false;
-            });
-            return;
-         }
+        if (!serviceEnabled) {
+          setState(() {
+            _locationText = 'Location services disabled. Tap to retry.';
+            _locationError = true;
+            _fetchingLocation = false;
+          });
+          return;
+        }
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
@@ -211,7 +225,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
           if (place.locality != null) {
             address += place.locality!;
           }
-          
+
           if (mounted) {
             setState(() {
               _currentPosition = position;
@@ -220,10 +234,11 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
             });
           }
         } else {
-           if (mounted) {
+          if (mounted) {
             setState(() {
               _currentPosition = position;
-              _locationText = 'Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)}';
+              _locationText =
+                  'Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)}';
               _fetchingLocation = false;
             });
           }
@@ -233,7 +248,8 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
         if (mounted) {
           setState(() {
             _currentPosition = position;
-            _locationText = 'Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)}';
+            _locationText =
+                'Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)}';
             _fetchingLocation = false;
           });
         }
@@ -253,19 +269,21 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
   Future<String> _uploadImage(File image) async {
     try {
       final String fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final Reference ref = FirebaseStorage.instance.ref().child('issues/$fileName');
+      final Reference ref = FirebaseStorage.instance.ref().child(
+        'issues/$fileName',
+      );
       final UploadTask uploadTask = ref.putFile(image);
       final TaskSnapshot snapshot = await uploadTask;
       return await snapshot.ref.getDownloadURL();
     } on FirebaseException catch (e) {
       if (e.code == 'object-not-found') {
-         throw 'Storage bucket or file not found. Please check Firebase Console.';
+        throw 'Storage bucket or file not found. Please check Firebase Console.';
       } else if (e.code == 'unauthorized') {
-         throw 'Permission denied. Check Storage Rules.';
+        throw 'Permission denied. Check Storage Rules.';
       } else {
-         // The 404 error from the log often comes as an 'unknown' or specific java exception wrapped
-         // We'll throw the message which might help.
-         throw 'Upload failed: ${e.message}. Ensure Storage is enabled in Console.';
+        // The 404 error from the log often comes as an 'unknown' or specific java exception wrapped
+        // We'll throw the message which might help.
+        throw 'Upload failed: ${e.message}. Ensure Storage is enabled in Console.';
       }
     } catch (e) {
       throw 'Upload failed: $e';
@@ -278,26 +296,26 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
       _showError('Please upload a photo');
       return;
     }
-    
+
     if (_titleController.text.trim().isEmpty) {
       setState(() => _titleError = true);
       return;
     } else {
       setState(() => _titleError = false);
     }
-    
+
     if (_descriptionController.text.trim().isEmpty) {
       setState(() => _descriptionError = true);
       return;
     } else {
       setState(() => _descriptionError = false);
     }
-    
+
     if (_selectedCategory == null) {
       _showError('Please select a category');
       return;
     }
-    
+
     if (_currentPosition == null) {
       _showError('Location not available');
       return;
@@ -307,32 +325,50 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
 
     try {
       final user = FirebaseAuth.instance.currentUser!;
-      
+
       // Upload image to Firebase Storage
       String photoUrl = await _uploadImage(_imageFile!);
-      
+
       // Fetch user details for City
       String city = 'Unknown';
       String cityNormalized = '';
+      String reporterName = user.displayName?.trim() ?? '';
       try {
-        DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        DocumentSnapshot userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
         if (userDoc.exists && userDoc.data() != null) {
           final data = userDoc.data() as Map<String, dynamic>;
           final rawCity = data['City'] ?? data['city'];
           city = LocationNormalizer.toTitleCase(rawCity);
-          cityNormalized = data['cityNormalized'] ?? LocationNormalizer.normalize(rawCity);
+          cityNormalized =
+              data['cityNormalized'] ?? LocationNormalizer.normalize(rawCity);
+          reporterName =
+              (data['name'] ??
+                      data['fullName'] ??
+                      data['displayName'] ??
+                      reporterName)
+                  .toString()
+                  .trim();
         }
       } catch (e) {
         debugPrint('Error fetching user city: $e');
       }
-      
+
+      if (reporterName.isEmpty) {
+        reporterName = user.email?.split('@').first ?? 'Anonymous';
+      }
+
       // Create issue in Firestore
       await FirebaseFirestore.instance.collection('issues').add({
         'userId': user.uid,
+        'userName': reporterName,
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
         'category': _selectedCategory,
-        'photoUrl': photoUrl, // Keeping this as it's useful, though not explicitly in the user's list from text, they said "data should be stored... latitude longitude... detected" and "tell me if u need anything". I will keep photoUrl as it's essential for the app.
+        'photoUrl':
+            photoUrl, // Keeping this as it's useful, though not explicitly in the user's list from text, they said "data should be stored... latitude longitude... detected" and "tell me if u need anything". I will keep photoUrl as it's essential for the app.
         'latitude': _currentPosition!.latitude,
         'longitude': _currentPosition!.longitude,
         'address': _locationText,
@@ -341,7 +377,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
         'status': 'Reported',
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-        
+
         // Extended fields for local functioning (optional but good practice to keep until told to remove)
         'upvotes': 0,
         'commentCount': 0,
@@ -359,20 +395,19 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
 
       // Navigate back or show success
       if (widget.isTab) {
-          // Clear form instead of popping?
-          _titleController.clear();
-          _descriptionController.clear();
-          setState(() {
-              _imageFile = null;
-              _selectedCategory = null;
-              _currentPosition = null;
-              _locationText = 'No location captured';
-          });
-          // Maybe show a dialog
+        // Clear form instead of popping?
+        _titleController.clear();
+        _descriptionController.clear();
+        setState(() {
+          _imageFile = null;
+          _selectedCategory = null;
+          _currentPosition = null;
+          _locationText = 'No location captured';
+        });
+        // Maybe show a dialog
       } else {
-         Navigator.pop(context);
+        Navigator.pop(context);
       }
-      
     } catch (e) {
       _showError('Failed to submit issue. Please try again.');
     } finally {
@@ -427,15 +462,13 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
               ),
             ],
           ),
-          
+
           // Loading Overlay
           if (_isSubmitting)
             Container(
               color: Colors.black.withOpacity(0.5),
               child: const Center(
-                child: CircularProgressIndicator(
-                  color: Color(0xFF10b981),
-                ),
+                child: CircularProgressIndicator(color: Color(0xFF10b981)),
               ),
             ),
         ],
@@ -491,12 +524,13 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
     return GestureDetector(
       onTap: _showImageSourceSheet,
       child: SlideTransition(
-        position: Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
-          CurvedAnimation(
-            parent: _fadeController,
-            curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
-          ),
-        ),
+        position: Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero)
+            .animate(
+              CurvedAnimation(
+                parent: _fadeController,
+                curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
+              ),
+            ),
         child: Container(
           height: 200,
           decoration: BoxDecoration(
@@ -510,76 +544,73 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
                 : null,
           ),
           child: _imageFile != null
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.file(
-                      _imageFile!,
-                      fit: BoxFit.cover,
-                    ),
-                    Container(
-                      color: Colors.black.withOpacity(0.3),
-                      child: const Center(
-                        child: Text(
-                          'Tap to Change',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.file(_imageFile!, fit: BoxFit.cover),
+                      Container(
+                        color: Colors.black.withOpacity(0.3),
+                        child: const Center(
+                          child: Text(
+                            'Tap to Change',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                )
+              : CustomPaint(
+                  painter: DashedBorderPainter(),
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.camera_alt_outlined,
+                        size: 48,
+                        color: Color(0xFF6366f1),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'Tap to Capture Photo',
+                        style: TextStyle(
+                          color: Color(0xFFf1f5f9),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'or',
+                        style: TextStyle(
+                          color: Color(0xFF94a3b8),
+                          fontSize: 12,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Choose from Gallery',
+                        style: TextStyle(
+                          color: Color(0xFF94a3b8),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              )
-            : CustomPaint(
-                painter: DashedBorderPainter(),
-                child: const Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.camera_alt_outlined,
-                      size: 48,
-                      color: Color(0xFF6366f1),
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Tap to Capture Photo',
-                      style: TextStyle(
-                        color: Color(0xFFf1f5f9),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'or',
-                      style: TextStyle(
-                        color: Color(0xFF94a3b8),
-                        fontSize: 12,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Choose from Gallery',
-                      style: TextStyle(
-                        color: Color(0xFF94a3b8),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
         ),
       ),
     );
   }
 
   Widget _buildLocationSection() {
-    Color bgColor = _locationError 
-        ? const Color(0xFFef4444).withOpacity(0.1) 
+    Color bgColor = _locationError
+        ? const Color(0xFFef4444).withOpacity(0.1)
         : const Color(0xFF10b981).withOpacity(0.1);
     Color borderColor = _locationError
         ? const Color(0xFFef4444).withOpacity(0.2)
@@ -587,15 +618,18 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
     Color textColor = _locationError
         ? const Color(0xFFef4444)
         : const Color(0xFF10b981);
-    IconData icon = _locationError ? Icons.warning_amber_rounded : Icons.check_circle_outline;
+    IconData icon = _locationError
+        ? Icons.warning_amber_rounded
+        : Icons.check_circle_outline;
 
     return SlideTransition(
-      position: Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
-        CurvedAnimation(
-          parent: _fadeController,
-          curve: const Interval(0.3, 1.0, curve: Curves.easeOut),
-        ),
-      ),
+      position: Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero)
+          .animate(
+            CurvedAnimation(
+              parent: _fadeController,
+              curve: const Interval(0.3, 1.0, curve: Curves.easeOut),
+            ),
+          ),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
@@ -630,8 +664,8 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
             if (!_fetchingLocation)
               IconButton(
                 icon: Icon(
-                    _locationError ? Icons.refresh : Icons.refresh, 
-                    size: 20
+                  _locationError ? Icons.refresh : Icons.refresh,
+                  size: 20,
                 ),
                 color: textColor,
                 onPressed: _getCurrentLocation,
@@ -670,7 +704,9 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: _titleError ? const Color(0xFFef4444) : const Color(0xFF334155),
+                color: _titleError
+                    ? const Color(0xFFef4444)
+                    : const Color(0xFF334155),
               ),
             ),
             focusedBorder: OutlineInputBorder(
@@ -690,7 +726,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
               style: TextStyle(color: Color(0xFFef4444), fontSize: 12),
             ),
           ),
-        
+
         const SizedBox(height: 24),
 
         // Description
@@ -716,7 +752,9 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: _descriptionError ? const Color(0xFFef4444) : const Color(0xFF334155),
+                color: _descriptionError
+                    ? const Color(0xFFef4444)
+                    : const Color(0xFF334155),
               ),
             ),
             focusedBorder: OutlineInputBorder(
@@ -766,7 +804,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
           itemBuilder: (context, index) {
             final category = _categories[index];
             final isSelected = _selectedCategory == category;
-            
+
             return GestureDetector(
               onTap: () {
                 setState(() => _selectedCategory = category);
@@ -787,7 +825,9 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
                       : null,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isSelected ? const Color(0xFF6366f1) : const Color(0xFF334155),
+                    color: isSelected
+                        ? const Color(0xFF6366f1)
+                        : const Color(0xFF334155),
                     width: isSelected ? 1.5 : 1,
                   ),
                 ),
@@ -795,7 +835,9 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
                   child: Text(
                     category,
                     style: TextStyle(
-                      color: isSelected ? const Color(0xFFf1f5f9) : const Color(0xFF94a3b8),
+                      color: isSelected
+                          ? const Color(0xFFf1f5f9)
+                          : const Color(0xFF94a3b8),
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -811,12 +853,13 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> with SingleTicker
 
   Widget _buildSubmitButton() {
     return SlideTransition(
-      position: Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
-        CurvedAnimation(
-          parent: _fadeController,
-          curve: const Interval(0.6, 1.0, curve: Curves.easeOut),
-        ),
-      ),
+      position: Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero)
+          .animate(
+            CurvedAnimation(
+              parent: _fadeController,
+              curve: const Interval(0.6, 1.0, curve: Curves.easeOut),
+            ),
+          ),
       child: GestureDetector(
         onTap: _submitIssue,
         child: Container(
@@ -863,15 +906,17 @@ class DashedBorderPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     final path = Path()
-      ..addRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        const Radius.circular(16),
-      ));
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, 0, size.width, size.height),
+          const Radius.circular(16),
+        ),
+      );
 
     final ui.Path dashedPath = ui.Path();
     const double dashWidth = 8.0;
     const double dashSpace = 6.0;
-    
+
     for (final ui.PathMetric metric in path.computeMetrics()) {
       double distance = 0.0;
       while (distance < metric.length) {
@@ -882,7 +927,7 @@ class DashedBorderPainter extends CustomPainter {
         distance += dashWidth + dashSpace;
       }
     }
-    
+
     canvas.drawPath(dashedPath, paint);
   }
 

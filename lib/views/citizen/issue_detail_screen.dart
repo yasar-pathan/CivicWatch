@@ -23,6 +23,7 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
   final TextEditingController _commentController = TextEditingController();
   bool _isUpvoted = false;
   int _upvoteCount = 0;
+  String _reporterName = 'Anonymous';
 
   @override
   void initState() {
@@ -33,7 +34,12 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
     )..forward();
 
     _upvoteCount = widget.data['upvotes'] ?? 0;
+    final rawName = (widget.data['userName'] ?? '').toString().trim();
+    if (rawName.isNotEmpty) {
+      _reporterName = rawName;
+    }
     _checkIfUpvoted();
+    _loadReporterName();
   }
 
   @override
@@ -53,12 +59,40 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
     }
   }
 
+  Future<void> _loadReporterName() async {
+    final userId = (widget.data['userId'] ?? '').toString().trim();
+    if (userId.isEmpty) return;
+
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      if (!userDoc.exists || !mounted) return;
+
+      final data = userDoc.data();
+      final resolvedName =
+          (data?['name'] ?? data?['fullName'] ?? data?['displayName'] ?? '')
+              .toString()
+              .trim();
+
+      if (resolvedName.isNotEmpty && resolvedName != _reporterName) {
+        setState(() {
+          _reporterName = resolvedName;
+        });
+      }
+    } catch (_) {
+      // Keep existing fallback when user doc is unavailable.
+    }
+  }
+
   Future<void> _toggleUpvote() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) return;
 
-    final docRef =
-        FirebaseFirestore.instance.collection('issues').doc(widget.issueId);
+    final docRef = FirebaseFirestore.instance
+        .collection('issues')
+        .doc(widget.issueId);
 
     setState(() {
       if (_isUpvoted) {
@@ -104,9 +138,7 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
         children: [
           // Animated gradient background (Same as Dashboard)
           Positioned.fill(
-            child: CustomPaint(
-              painter: GradientBackgroundPainter(),
-            ),
+            child: CustomPaint(painter: GradientBackgroundPainter()),
           ),
 
           SafeArea(
@@ -179,11 +211,7 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
           border: Border.all(color: const Color(0xFF334155)),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Icon(
-          Icons.arrow_back,
-          color: Color(0xFF94a3b8),
-          size: 20,
-        ),
+        child: const Icon(Icons.arrow_back, color: Color(0xFF94a3b8), size: 20),
       ),
     );
   }
@@ -192,10 +220,14 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
     final photoUrl = widget.data['photoUrl'];
     final category = widget.data['category'] ?? 'Issue';
     String emoji = '⚠️';
-    if (category.toString().toLowerCase().contains('pothole')) emoji = '🕳️';
-    else if (category.toString().toLowerCase().contains('sewage')) emoji = '💧';
-    else if (category.toString().toLowerCase().contains('garbage')) emoji = '🗑️';
-    else if (category.toString().toLowerCase().contains('broken')) emoji = '🚧';
+    if (category.toString().toLowerCase().contains('pothole'))
+      emoji = '🕳️';
+    else if (category.toString().toLowerCase().contains('sewage'))
+      emoji = '💧';
+    else if (category.toString().toLowerCase().contains('garbage'))
+      emoji = '🗑️';
+    else if (category.toString().toLowerCase().contains('broken'))
+      emoji = '🚧';
 
     return FadeTransition(
       opacity: CurvedAnimation(
@@ -204,13 +236,21 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
       ),
       child: SlideTransition(
         position: Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero)
-            .animate(CurvedAnimation(
+            .animate(
+              CurvedAnimation(
                 parent: _fadeController,
-                curve: const Interval(0.2, 1.0, curve: Curves.easeOut))),
+                curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
+              ),
+            ),
         child: GestureDetector(
           onTap: () {
             if (photoUrl != null && photoUrl.isNotEmpty) {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => FullScreenImageViewer(imageUrl: photoUrl)));
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => FullScreenImageViewer(imageUrl: photoUrl),
+                ),
+              );
             }
           },
           child: Container(
@@ -223,7 +263,9 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
                 Hero(
                   tag: 'issue_image_${widget.issueId}',
                   child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+                    borderRadius: const BorderRadius.vertical(
+                      bottom: Radius.circular(24),
+                    ),
                     child: (photoUrl != null && photoUrl.isNotEmpty)
                         ? Image.network(
                             photoUrl,
@@ -234,9 +276,17 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
                                 color: const Color(0xFF1e293b),
                                 child: Center(
                                   child: CircularProgressIndicator(
-                                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF6366f1)),
-                                    value: loadingProgress.expectedTotalBytes != null
-                                        ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                    valueColor:
+                                        const AlwaysStoppedAnimation<Color>(
+                                          Color(0xFF6366f1),
+                                        ),
+                                    value:
+                                        loadingProgress.expectedTotalBytes !=
+                                            null
+                                        ? loadingProgress
+                                                  .cumulativeBytesLoaded /
+                                              loadingProgress
+                                                  .expectedTotalBytes!
                                         : null,
                                   ),
                                 ),
@@ -246,7 +296,10 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
                         : Container(
                             color: const Color(0xFF1e293b),
                             child: Center(
-                              child: Text(emoji, style: const TextStyle(fontSize: 80)),
+                              child: Text(
+                                emoji,
+                                style: const TextStyle(fontSize: 80),
+                              ),
                             ),
                           ),
                   ),
@@ -255,7 +308,9 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
                 Positioned.fill(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+                      borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(24),
+                      ),
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
@@ -278,9 +333,13 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
                       color: Colors.black.withOpacity(0.5),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.zoom_out_map, color: Colors.white, size: 20),
+                    child: const Icon(
+                      Icons.zoom_out_map,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
-                )
+                ),
               ],
             ),
           ),
@@ -317,13 +376,20 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
   Widget _buildCategoryBadge() {
     final category = widget.data['category'] ?? 'General';
     String emoji = '⚠️';
-    if (category.toString().toLowerCase().contains('pothole')) emoji = '🕳️';
-    else if (category.toString().toLowerCase().contains('sewage')) emoji = '💧';
-    else if (category.toString().toLowerCase().contains('broken')) emoji = '🚧';
-    else if (category.toString().toLowerCase().contains('clean')) emoji = '🗑️';
+    if (category.toString().toLowerCase().contains('pothole'))
+      emoji = '🕳️';
+    else if (category.toString().toLowerCase().contains('sewage'))
+      emoji = '💧';
+    else if (category.toString().toLowerCase().contains('broken'))
+      emoji = '🚧';
+    else if (category.toString().toLowerCase().contains('clean'))
+      emoji = '🗑️';
 
     return FadeTransition(
-      opacity: CurvedAnimation(parent: _fadeController, curve: const Interval(0.3, 1.0, curve: Curves.easeOut)),
+      opacity: CurvedAnimation(
+        parent: _fadeController,
+        curve: const Interval(0.3, 1.0, curve: Curves.easeOut),
+      ),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
@@ -358,17 +424,23 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
 
       if (dateTime != null) {
         final diff = DateTime.now().difference(dateTime);
-        if (diff.inDays > 0) timeStr = '${diff.inDays}d ago';
-        else if (diff.inHours > 0) timeStr = '${diff.inHours}h ago';
-        else if (diff.inMinutes > 0) timeStr = '${diff.inMinutes}m ago';
+        if (diff.inDays > 0)
+          timeStr = '${diff.inDays}d ago';
+        else if (diff.inHours > 0)
+          timeStr = '${diff.inHours}h ago';
+        else if (diff.inMinutes > 0)
+          timeStr = '${diff.inMinutes}m ago';
       }
     }
 
     final distance = widget.data['address'] ?? 'Unknown location';
-    final userName = widget.data['userName'] ?? 'Anonymous';
+    final userName = _reporterName;
 
     return FadeTransition(
-      opacity: CurvedAnimation(parent: _fadeController, curve: const Interval(0.35, 1.0, curve: Curves.easeOut)),
+      opacity: CurvedAnimation(
+        parent: _fadeController,
+        curve: const Interval(0.35, 1.0, curve: Curves.easeOut),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -389,7 +461,10 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
               Expanded(
                 child: Text(
                   'Posted by: $userName',
-                  style: const TextStyle(color: Color(0xFF64748b), fontSize: 13),
+                  style: const TextStyle(
+                    color: Color(0xFF64748b),
+                    fontSize: 13,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -398,22 +473,25 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
           const SizedBox(height: 8),
           Row(
             children: [
-               const Icon(Icons.access_time, size: 16, color: Color(0xFF64748b)),
-               const SizedBox(width: 6),
-               Text(
-                 timeStr,
-                 style: const TextStyle(color: Color(0xFF64748b), fontSize: 13),
-               ),
-               const SizedBox(width: 16),
-               const Icon(Icons.location_on, size: 16, color: Color(0xFFec4899)),
-               const SizedBox(width: 6),
-               Expanded(
-                 child: Text(
-                   distance,
-                   style: const TextStyle(color: Color(0xFF94a3b8), fontSize: 13),
-                   overflow: TextOverflow.ellipsis,
-                 ),
-               ),
+              const Icon(Icons.access_time, size: 16, color: Color(0xFF64748b)),
+              const SizedBox(width: 6),
+              Text(
+                timeStr,
+                style: const TextStyle(color: Color(0xFF64748b), fontSize: 13),
+              ),
+              const SizedBox(width: 16),
+              const Icon(Icons.location_on, size: 16, color: Color(0xFFec4899)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  distance,
+                  style: const TextStyle(
+                    color: Color(0xFF94a3b8),
+                    fontSize: 13,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ],
@@ -424,12 +502,18 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
   Widget _buildStatusSection() {
     final status = widget.data['status'] ?? 'Reported';
     Color statusColor = const Color(0xFFf59e0b); // Reported/Recognized
-    if (status == 'Done' || status == 'Resolved') statusColor = const Color(0xFF10b981);
-    else if (status == 'In Work') statusColor = const Color(0xFF3b82f6);
-    else if (status == 'Rejected') statusColor = const Color(0xFFef4444);
+    if (status == 'Done' || status == 'Resolved')
+      statusColor = const Color(0xFF10b981);
+    else if (status == 'In Work')
+      statusColor = const Color(0xFF3b82f6);
+    else if (status == 'Rejected')
+      statusColor = const Color(0xFFef4444);
 
     return FadeTransition(
-      opacity: CurvedAnimation(parent: _fadeController, curve: const Interval(0.4, 1.0, curve: Curves.easeOut)),
+      opacity: CurvedAnimation(
+        parent: _fadeController,
+        curve: const Interval(0.4, 1.0, curve: Curves.easeOut),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -473,8 +557,17 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
                 const SizedBox(height: 16),
                 _buildTimelineItem('Reported', true, isFirst: true),
                 _buildTimelineItem('Recognized', status != 'Reported'),
-                _buildTimelineItem('In Work', status == 'In Work' || status == 'Done' || status == 'Resolved'),
-                _buildTimelineItem('Resolved', status == 'Done' || status == 'Resolved', isLast: true),
+                _buildTimelineItem(
+                  'In Work',
+                  status == 'In Work' ||
+                      status == 'Done' ||
+                      status == 'Resolved',
+                ),
+                _buildTimelineItem(
+                  'Resolved',
+                  status == 'Done' || status == 'Resolved',
+                  isLast: true,
+                ),
               ],
             ),
           ),
@@ -483,7 +576,12 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
     );
   }
 
-  Widget _buildTimelineItem(String label, bool isActive, {bool isFirst = false, bool isLast = false}) {
+  Widget _buildTimelineItem(
+    String label,
+    bool isActive, {
+    bool isFirst = false,
+    bool isLast = false,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -494,16 +592,22 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
               height: 20,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isActive ? const Color(0xFF10b981) : const Color(0xFF334155),
+                color: isActive
+                    ? const Color(0xFF10b981)
+                    : const Color(0xFF334155),
                 border: Border.all(color: const Color(0xFF0f172a), width: 2),
               ),
-              child: isActive ? const Icon(Icons.check, size: 12, color: Colors.white) : null,
+              child: isActive
+                  ? const Icon(Icons.check, size: 12, color: Colors.white)
+                  : null,
             ),
             if (!isLast)
               Container(
                 width: 2,
                 height: 24,
-                color: isActive ? const Color(0xFF10b981).withOpacity(0.5) : const Color(0xFF334155),
+                color: isActive
+                    ? const Color(0xFF10b981).withOpacity(0.5)
+                    : const Color(0xFF334155),
                 margin: const EdgeInsets.symmetric(vertical: 2),
               ),
           ],
@@ -523,7 +627,10 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
 
   Widget _buildDescriptionCard() {
     return FadeTransition(
-      opacity: CurvedAnimation(parent: _fadeController, curve: const Interval(0.45, 1.0, curve: Curves.easeOut)),
+      opacity: CurvedAnimation(
+        parent: _fadeController,
+        curve: const Interval(0.45, 1.0, curve: Curves.easeOut),
+      ),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
@@ -561,40 +668,58 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
 
   Widget _buildActionButtons() {
     return FadeTransition(
-      opacity: CurvedAnimation(parent: _fadeController, curve: const Interval(0.5, 1.0, curve: Curves.easeOut)),
+      opacity: CurvedAnimation(
+        parent: _fadeController,
+        curve: const Interval(0.5, 1.0, curve: Curves.easeOut),
+      ),
       child: Row(
         children: [
-          Expanded(child: _buildActionButton(
-            '👍', 
-            _isUpvoted ? 'Upvoted' : 'Upvote', 
-            '($_upvoteCount)',
-            isActive: _isUpvoted,
-            onTap: _toggleUpvote,
-          )),
+          Expanded(
+            child: _buildActionButton(
+              '👍',
+              _isUpvoted ? 'Upvoted' : 'Upvote',
+              '($_upvoteCount)',
+              isActive: _isUpvoted,
+              onTap: _toggleUpvote,
+            ),
+          ),
           const SizedBox(width: 12),
-          Expanded(child: _buildActionButton(
-            '💬', 'Comment', 
-            '(${widget.data['commentCount'] ?? 0})',
-            onTap: () {}, // Focus on comment field
-          )),
+          Expanded(
+            child: _buildActionButton(
+              '💬',
+              'Comment',
+              '(${widget.data['commentCount'] ?? 0})',
+              onTap: () {}, // Focus on comment field
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildActionButton(String emoji, String label, String subLabel, {bool isActive = false, VoidCallback? onTap}) {
+  Widget _buildActionButton(
+    String emoji,
+    String label,
+    String subLabel, {
+    bool isActive = false,
+    VoidCallback? onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          gradient: isActive ? const LinearGradient(
-            colors: [Color(0xFF6366f1), Color(0xFFec4899)],
-          ) : null,
+          gradient: isActive
+              ? const LinearGradient(
+                  colors: [Color(0xFF6366f1), Color(0xFFec4899)],
+                )
+              : null,
           color: isActive ? null : const Color(0xFF1e293b),
           border: Border.all(
             color: isActive ? const Color(0xFF6366f1) : const Color(0xFF334155),
-            width: isActive ? 2 : 1, // Slightly thicker border when active if no gradient, but here gradient applies
+            width: isActive
+                ? 2
+                : 1, // Slightly thicker border when active if no gradient, but here gradient applies
           ),
           borderRadius: BorderRadius.circular(14),
         ),
@@ -625,7 +750,10 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
 
   Widget _buildStatsCard() {
     return FadeTransition(
-      opacity: CurvedAnimation(parent: _fadeController, curve: const Interval(0.55, 1.0, curve: Curves.easeOut)),
+      opacity: CurvedAnimation(
+        parent: _fadeController,
+        curve: const Interval(0.55, 1.0, curve: Curves.easeOut),
+      ),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -671,15 +799,12 @@ class _IssueDetailScreenState extends State<IssueDetailScreen>
         ),
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Color(0xFF64748b),
-          ),
+          style: const TextStyle(fontSize: 11, color: Color(0xFF64748b)),
         ),
       ],
     );
   }
-  
+
   Widget _buildCommentsSection() {
     return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -715,26 +840,22 @@ class FullScreenImageViewer extends StatelessWidget {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-           Center(
-             child: InteractiveViewer(
-               child: Image.network(imageUrl),
-             ),
-           ),
-           Positioned(
-             top: MediaQuery.of(context).padding.top + 20,
-             right: 20,
-             child: GestureDetector(
-               onTap: () => Navigator.pop(context),
-               child: Container(
-                 padding: const EdgeInsets.all(8),
-                 decoration: BoxDecoration(
-                   color: Colors.white.withOpacity(0.2),
-                   shape: BoxShape.circle,
-                 ),
-                 child: const Icon(Icons.close, color: Colors.white),
-               ),
-             ),
-           ),
+          Center(child: InteractiveViewer(child: Image.network(imageUrl))),
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 20,
+            right: 20,
+            child: GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close, color: Colors.white),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -748,15 +869,18 @@ class GradientBackgroundPainter extends CustomPainter {
     final paint = Paint()..style = PaintingStyle.fill;
 
     // First gradient circle
-    paint.shader = RadialGradient(
-      colors: [
-        const Color(0xFF6366f1).withOpacity(0.15),
-        Colors.transparent,
-      ],
-    ).createShader(Rect.fromCircle(
-      center: Offset(size.width * 0.2, size.height * 0.3),
-      radius: size.width * 0.4,
-    ));
+    paint.shader =
+        RadialGradient(
+          colors: [
+            const Color(0xFF6366f1).withOpacity(0.15),
+            Colors.transparent,
+          ],
+        ).createShader(
+          Rect.fromCircle(
+            center: Offset(size.width * 0.2, size.height * 0.3),
+            radius: size.width * 0.4,
+          ),
+        );
     canvas.drawCircle(
       Offset(size.width * 0.2, size.height * 0.3),
       size.width * 0.4,
@@ -764,15 +888,18 @@ class GradientBackgroundPainter extends CustomPainter {
     );
 
     // Second gradient circle
-    paint.shader = RadialGradient(
-      colors: [
-        const Color(0xFFec4899).withOpacity(0.1),
-        Colors.transparent,
-      ],
-    ).createShader(Rect.fromCircle(
-      center: Offset(size.width * 0.8, size.height * 0.7),
-      radius: size.width * 0.4,
-    ));
+    paint.shader =
+        RadialGradient(
+          colors: [
+            const Color(0xFFec4899).withOpacity(0.1),
+            Colors.transparent,
+          ],
+        ).createShader(
+          Rect.fromCircle(
+            center: Offset(size.width * 0.8, size.height * 0.7),
+            radius: size.width * 0.4,
+          ),
+        );
     canvas.drawCircle(
       Offset(size.width * 0.8, size.height * 0.7),
       size.width * 0.4,
@@ -780,15 +907,18 @@ class GradientBackgroundPainter extends CustomPainter {
     );
 
     // Third gradient circle
-    paint.shader = RadialGradient(
-      colors: [
-        const Color(0xFFf59e0b).withOpacity(0.08),
-        Colors.transparent,
-      ],
-    ).createShader(Rect.fromCircle(
-      center: Offset(size.width * 0.5, size.height * 0.5),
-      radius: size.width * 0.5,
-    ));
+    paint.shader =
+        RadialGradient(
+          colors: [
+            const Color(0xFFf59e0b).withOpacity(0.08),
+            Colors.transparent,
+          ],
+        ).createShader(
+          Rect.fromCircle(
+            center: Offset(size.width * 0.5, size.height * 0.5),
+            radius: size.width * 0.5,
+          ),
+        );
     canvas.drawCircle(
       Offset(size.width * 0.5, size.height * 0.5),
       size.width * 0.5,

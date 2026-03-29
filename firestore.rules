@@ -123,7 +123,8 @@ service cloud.firestore {
                       request.resource.data.userId == resource.data.userId
                     );
 
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() ||
+            (isSignedIn() && resource.data.userId == request.auth.uid);
 
       // State actions/comments on escalated issues.
       match /state_actions/{actionId} {

@@ -17,9 +17,9 @@ class _MyReportsScreenState extends State<MyReportsScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _fadeController;
   int _selectedFilter = 0; // 0: All, 1: Active, 2: Resolved
-  
+
   String get currentUserId => FirebaseAuth.instance.currentUser?.uid ?? '';
-  
+
   @override
   void initState() {
     super.initState();
@@ -28,13 +28,13 @@ class _MyReportsScreenState extends State<MyReportsScreen>
       vsync: this,
     )..forward();
   }
-  
+
   @override
   void dispose() {
     _fadeController.dispose();
     super.dispose();
   }
-  
+
   @override
   Widget build(BuildContext context) {
     if (currentUserId.isEmpty) return const SizedBox();
@@ -46,23 +46,23 @@ class _MyReportsScreenState extends State<MyReportsScreen>
           children: [
             _buildHeader(),
             Expanded(
-                child: RefreshIndicator(
-                    onRefresh: () async {
-                        setState(() {});
-                        await Future.delayed(const Duration(milliseconds: 500));
-                    },
-                    color: const Color(0xFF6366f1),
-                    backgroundColor: const Color(0xFF1e293b),
-                    child: Column(
-                        children: [
-                            _buildStatsCards(),
-                            const SizedBox(height: 20),
-                            _buildFilterTabs(),
-                            const SizedBox(height: 16),
-                            _buildIssuesList(),
-                        ],
-                    ),
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  setState(() {});
+                  await Future.delayed(const Duration(milliseconds: 500));
+                },
+                color: const Color(0xFF6366f1),
+                backgroundColor: const Color(0xFF1e293b),
+                child: Column(
+                  children: [
+                    _buildStatsCards(),
+                    const SizedBox(height: 20),
+                    _buildFilterTabs(),
+                    const SizedBox(height: 16),
+                    _buildIssuesList(),
+                  ],
                 ),
+              ),
             ),
           ],
         ),
@@ -117,10 +117,7 @@ class _MyReportsScreenState extends State<MyReportsScreen>
           const SizedBox(height: 8),
           const Text(
             'Track and manage your reported issues',
-            style: TextStyle(
-              color: Color(0xFF94a3b8),
-              fontSize: 15,
-            ),
+            style: TextStyle(color: Color(0xFF94a3b8), fontSize: 15),
           ),
         ],
       ),
@@ -142,34 +139,65 @@ class _MyReportsScreenState extends State<MyReportsScreen>
 
   Widget _buildStatsCards() {
     return Padding(
-        padding: const EdgeInsets.all(20),
-        child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('issues')
-                .where('userId', isEqualTo: currentUserId)
-                .snapshots(),
-            builder: (context, snapshot) {
-                 int total = 0;
-                 int active = 0;
-                 int resolved = 0;
+      padding: const EdgeInsets.all(20),
+      child: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('issues')
+            .where('userId', isEqualTo: currentUserId)
+            .snapshots(),
+        builder: (context, snapshot) {
+          int total = 0;
+          int active = 0;
+          int resolved = 0;
 
-                 if (snapshot.hasData) {
-                     total = snapshot.data!.docs.length;
-                     active = snapshot.data!.docs.where((doc) => doc['status'] != 'Done' && doc['status'] != 'Resolved').length;
-                     resolved = snapshot.data!.docs.where((doc) => doc['status'] == 'Done' || doc['status'] == 'Resolved').length;
-                 }
+          if (snapshot.hasData) {
+            total = snapshot.data!.docs.length;
+            active = snapshot.data!.docs
+                .where(
+                  (doc) =>
+                      doc['status'] != 'Done' && doc['status'] != 'Resolved',
+                )
+                .length;
+            resolved = snapshot.data!.docs
+                .where(
+                  (doc) =>
+                      doc['status'] == 'Done' || doc['status'] == 'Resolved',
+                )
+                .length;
+          }
 
-                return Row(
-                    children: [
-                    Expanded(child: _buildStatCard(total.toString(), 'TOTAL', Icons.assignment, 0)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _buildStatCard(active.toString(), 'ACTIVE', Icons.pending, 1)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _buildStatCard(resolved.toString(), 'RESOLVED', Icons.check_circle, 2)),
-                    ],
-                );
-            }
-        ),
+          return Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  total.toString(),
+                  'TOTAL',
+                  Icons.assignment,
+                  0,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  active.toString(),
+                  'ACTIVE',
+                  Icons.pending,
+                  1,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  resolved.toString(),
+                  'RESOLVED',
+                  Icons.check_circle,
+                  2,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -188,11 +216,7 @@ class _MyReportsScreenState extends State<MyReportsScreen>
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              color: const Color(0xFF6366f1),
-              size: 24,
-            ),
+            Icon(icon, color: const Color(0xFF6366f1), size: 24),
             const SizedBox(height: 8),
             ShaderMask(
               shaderCallback: (bounds) => const LinearGradient(
@@ -245,15 +269,19 @@ class _MyReportsScreenState extends State<MyReportsScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          gradient: isSelected ? LinearGradient(
-            colors: [
-              const Color(0xFF6366f1).withOpacity(0.2),
-              const Color(0xFFec4899).withOpacity(0.1),
-            ],
-          ) : null,
+          gradient: isSelected
+              ? LinearGradient(
+                  colors: [
+                    const Color(0xFF6366f1).withOpacity(0.2),
+                    const Color(0xFFec4899).withOpacity(0.1),
+                  ],
+                )
+              : null,
           color: isSelected ? null : const Color(0xFF1e293b),
           border: Border.all(
-            color: isSelected ? const Color(0xFF6366f1) : const Color(0xFF334155),
+            color: isSelected
+                ? const Color(0xFF6366f1)
+                : const Color(0xFF334155),
             width: isSelected ? 2 : 1,
           ),
           borderRadius: BorderRadius.circular(12),
@@ -264,7 +292,9 @@ class _MyReportsScreenState extends State<MyReportsScreen>
           style: TextStyle(
             fontSize: 14,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-            color: isSelected ? const Color(0xFFf1f5f9) : const Color(0xFF94a3b8),
+            color: isSelected
+                ? const Color(0xFFf1f5f9)
+                : const Color(0xFF94a3b8),
           ),
         ),
       ),
@@ -275,38 +305,46 @@ class _MyReportsScreenState extends State<MyReportsScreen>
     return Expanded(
       child: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
-          .collection('issues')
-          .where('userId', isEqualTo: currentUserId)
-          // Removed orderBy to avoid index requirement errors
-          .snapshots(),
+            .collection('issues')
+            .where('userId', isEqualTo: currentUserId)
+            // Removed orderBy to avoid index requirement errors
+            .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation(Color(0xFF6366f1)),
-            ));
+            return const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation(Color(0xFF6366f1)),
+              ),
+            );
           }
-          
+
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return _buildEmptyState();
           }
-          
+
           List<Issue> issues = snapshot.data!.docs
-            .map((doc) => Issue.fromFirestore(doc))
-            .toList();
-            
+              .map((doc) => Issue.fromFirestore(doc))
+              .toList();
+
           // Client-side sort
           issues.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          
-          if (_selectedFilter == 1) { // Active
-            issues = issues.where((i) => i.status != 'Done' && i.status != 'Resolved').toList();
-          } else if (_selectedFilter == 2) { // Resolved
-            issues = issues.where((i) => i.status == 'Done' || i.status == 'Resolved').toList();
+
+          if (_selectedFilter == 1) {
+            // Active
+            issues = issues
+                .where((i) => i.status != 'Done' && i.status != 'Resolved')
+                .toList();
+          } else if (_selectedFilter == 2) {
+            // Resolved
+            issues = issues
+                .where((i) => i.status == 'Done' || i.status == 'Resolved')
+                .toList();
           }
 
           if (issues.isEmpty) {
-              return _buildEmptyState();
+            return _buildEmptyState();
           }
-          
+
           return ListView.builder(
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -324,16 +362,24 @@ class _MyReportsScreenState extends State<MyReportsScreen>
     return FadeTransition(
       opacity: CurvedAnimation(
         parent: _fadeController,
-        curve: Interval(0.3 + (index * 0.1) > 1.0 ? 1.0 : 0.3 + (index * 0.1), 1.0, curve: Curves.easeOut),
+        curve: Interval(
+          0.3 + (index * 0.1) > 1.0 ? 1.0 : 0.3 + (index * 0.1),
+          1.0,
+          curve: Curves.easeOut,
+        ),
       ),
       child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 0.3),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(
-          parent: _fadeController,
-          curve: Interval(0.3 + (index * 0.1) > 1.0 ? 1.0 : 0.3 + (index * 0.1), 1.0, curve: Curves.easeOut),
-        )),
+        position: Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
+            .animate(
+              CurvedAnimation(
+                parent: _fadeController,
+                curve: Interval(
+                  0.3 + (index * 0.1) > 1.0 ? 1.0 : 0.3 + (index * 0.1),
+                  1.0,
+                  curve: Curves.easeOut,
+                ),
+              ),
+            ),
         child: Container(
           margin: const EdgeInsets.only(bottom: 16),
           padding: const EdgeInsets.all(16),
@@ -364,16 +410,13 @@ class _MyReportsScreenState extends State<MyReportsScreen>
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: issue.photoUrl.isNotEmpty
-                        ? Image.network(
-                            issue.photoUrl,
-                            fit: BoxFit.cover,
-                          )
-                        : Center(
-                            child: Text(
-                              _getCategoryEmoji(issue.category),
-                              style: const TextStyle(fontSize: 32),
+                          ? Image.network(issue.photoUrl, fit: BoxFit.cover)
+                          : Center(
+                              child: Text(
+                                _getCategoryEmoji(issue.category),
+                                style: const TextStyle(fontSize: 32),
+                              ),
                             ),
-                          ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -395,9 +438,10 @@ class _MyReportsScreenState extends State<MyReportsScreen>
                         const SizedBox(height: 6),
                         Row(
                           children: [
-                            const Icon(Icons.location_on, 
-                              size: 14, 
-                              color: Color(0xFF64748b)
+                            const Icon(
+                              Icons.location_on,
+                              size: 14,
+                              color: Color(0xFF64748b),
                             ),
                             const SizedBox(width: 4),
                             Expanded(
@@ -416,9 +460,10 @@ class _MyReportsScreenState extends State<MyReportsScreen>
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            const Icon(Icons.access_time, 
-                              size: 14, 
-                              color: Color(0xFF64748b)
+                            const Icon(
+                              Icons.access_time,
+                              size: 14,
+                              color: Color(0xFF64748b),
                             ),
                             const SizedBox(width: 4),
                             Text(
@@ -444,9 +489,10 @@ class _MyReportsScreenState extends State<MyReportsScreen>
               ),
               Row(
                 children: [
-                  const Icon(Icons.thumb_up, 
-                    size: 16, 
-                    color: Color(0xFF6366f1)
+                  const Icon(
+                    Icons.thumb_up,
+                    size: 16,
+                    color: Color(0xFF6366f1),
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -458,9 +504,10 @@ class _MyReportsScreenState extends State<MyReportsScreen>
                     ),
                   ),
                   const SizedBox(width: 16),
-                  const Icon(Icons.chat_bubble_outline, 
-                    size: 16, 
-                    color: Color(0xFF94a3b8)
+                  const Icon(
+                    Icons.chat_bubble_outline,
+                    size: 16,
+                    color: Color(0xFF94a3b8),
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -473,7 +520,10 @@ class _MyReportsScreenState extends State<MyReportsScreen>
                   ),
                   const SizedBox(width: 16),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF6366f1).withOpacity(0.1),
                       border: Border.all(
@@ -520,8 +570,8 @@ class _MyReportsScreenState extends State<MyReportsScreen>
   Widget _buildStatusBadge(String status) {
     Color bgColor, textColor;
     String icon;
-    
-    switch(status) {
+
+    switch (status) {
       case 'Reported':
         bgColor = const Color(0xFFef4444).withOpacity(0.1);
         textColor = const Color(0xFFef4444);
@@ -549,7 +599,7 @@ class _MyReportsScreenState extends State<MyReportsScreen>
         textColor = const Color(0xFF64748b);
         icon = '⚪';
     }
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -593,13 +643,19 @@ class _MyReportsScreenState extends State<MyReportsScreen>
   }
 
   String _getCategoryEmoji(String category) {
-    switch(category.toLowerCase()) {
-      case 'pothole': return '🕳️';
-      case 'sewage': return '💧';
-      case 'broken infrastructure': return '🚧';
-      case 'broken': return '🚧';
-      case 'cleanliness': return '🗑️';
-      default: return '📍';
+    switch (category.toLowerCase()) {
+      case 'pothole':
+        return '🕳️';
+      case 'sewage':
+        return '💧';
+      case 'broken infrastructure':
+        return '🚧';
+      case 'broken':
+        return '🚧';
+      case 'cleanliness':
+        return '🗑️';
+      default:
+        return '📍';
     }
   }
 
@@ -663,20 +719,23 @@ class _MyReportsScreenState extends State<MyReportsScreen>
 
   void _viewIssue(Issue issue) {
     // We need to fetch data as map for the detail screen
-    FirebaseFirestore.instance.collection('issues').doc(issue.issueId).get().then((doc) {
-        if(doc.exists && mounted) {
+    FirebaseFirestore.instance
+        .collection('issues')
+        .doc(issue.issueId)
+        .get()
+        .then((doc) {
+          if (doc.exists && mounted) {
             Navigator.push(
-                context,
-                MaterialPageRoute(
+              context,
+              MaterialPageRoute(
                 builder: (context) => IssueDetailScreen(
-                    issueId: issue.issueId,
-                    data: doc.data() as Map<String, dynamic>,
+                  issueId: issue.issueId,
+                  data: doc.data() as Map<String, dynamic>,
                 ),
-                ),
+              ),
             );
-        }
-    });
-
+          }
+        });
   }
 
   void _editIssue(Issue issue) {
@@ -689,12 +748,10 @@ class _MyReportsScreenState extends State<MyReportsScreen>
       );
       return;
     }
-    
+
     Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (context) => EditIssueScreen(issue: issue),
-        ),
+      context,
+      MaterialPageRoute(builder: (context) => EditIssueScreen(issue: issue)),
     );
   }
 
@@ -703,9 +760,7 @@ class _MyReportsScreenState extends State<MyReportsScreen>
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1e293b),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text(
           'Delete Issue?',
           style: TextStyle(
@@ -716,11 +771,7 @@ class _MyReportsScreenState extends State<MyReportsScreen>
         ),
         content: const Text(
           'This action cannot be undone. Are you sure you want to delete this issue?',
-          style: TextStyle(
-            color: Color(0xFF94a3b8),
-            fontSize: 15,
-            height: 1.5,
-          ),
+          style: TextStyle(color: Color(0xFF94a3b8), fontSize: 15, height: 1.5),
         ),
         actions: [
           TextButton(
@@ -775,46 +826,58 @@ class _MyReportsScreenState extends State<MyReportsScreen>
           backgroundColor: Color(0xFF1e293b),
         ),
       );
-      
+
       if (issue.photoUrl.isNotEmpty) {
         try {
-            await FirebaseStorage.instance.refFromURL(issue.photoUrl).delete();
-        } catch (_) { 
-            // Ignore storage errors if file doesn't exist
+          await FirebaseStorage.instance.refFromURL(issue.photoUrl).delete();
+        } catch (_) {
+          // Ignore storage errors if file doesn't exist
         }
       }
-      
-      // Delete comments
-      QuerySnapshot comments = await FirebaseFirestore.instance
-        .collection('comments')
-        .where('issueId', isEqualTo: issue.issueId)
-        .get();
-      
-      for (var doc in comments.docs) {
-        await doc.reference.delete();
-      }
-      
+
+      // Best-effort comment cleanup. Deletion of issue should not fail if
+      // user cannot delete comments written by others.
+      try {
+        final nestedComments = await FirebaseFirestore.instance
+            .collection('issues')
+            .doc(issue.issueId)
+            .collection('comments')
+            .get();
+        for (var doc in nestedComments.docs) {
+          await doc.reference.delete();
+        }
+      } catch (_) {}
+
+      try {
+        final legacyComments = await FirebaseFirestore.instance
+            .collection('comments')
+            .where('issueId', isEqualTo: issue.issueId)
+            .get();
+        for (var doc in legacyComments.docs) {
+          await doc.reference.delete();
+        }
+      } catch (_) {}
+
       await FirebaseFirestore.instance
-        .collection('issues')
-        .doc(issue.issueId)
-        .delete();
-      
-      if(mounted) {
+          .collection('issues')
+          .doc(issue.issueId)
+          .delete();
+
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+          const SnackBar(
             content: Text('✅ Issue deleted successfully'),
             backgroundColor: Color(0xFF10b981),
-            ),
+          ),
         );
       }
-      
     } catch (e) {
-      if(mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+          const SnackBar(
             content: Text('Failed to delete issue. Please try again.'),
             backgroundColor: Color(0xFFef4444),
-            ),
+          ),
         );
       }
     }

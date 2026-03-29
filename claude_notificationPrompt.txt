@@ -1,0 +1,858 @@
+🎯 MASTER PROMPT: CivicWatch Complete Notification System
+
+OVERVIEW:
+Build a comprehensive, real-time notification system for all four user roles in CivicWatch using Firebase Cloud Messaging (FCM). Notifications must be timely, relevant, actionable, and role-specific.
+
+NOTIFICATION INFRASTRUCTURE:
+Technology Stack:
+
+Firebase Cloud Messaging (FCM) for push notifications
+Cloud Functions for automated notification triggers
+Firestore for notification history storage
+Local Notifications for scheduled/reminder notifications
+
+Notification Types:
+
+Push Notifications - Real-time alerts (FCM)
+In-App Notifications - Notification center inside app
+Email Notifications - Optional (for important events)
+SMS Notifications - Optional (for critical events)
+
+
+NOTIFICATION ARCHITECTURE:
+FCM Token Management:
+On User Login:
+
+Request FCM token from device
+Store in Firestore: users/{uid}.fcmToken: "token_string"
+Update token on every login (tokens can change)
+
+On User Logout:
+
+Optionally clear FCM token OR keep for logged-out notifications
+
+Token Refresh:
+
+Listen for token refresh events
+Update Firestore with new token
+
+
+Notification Storage (Firestore):
+Collection: notifications
+Document ID: auto-generated
+{
+  id: string
+  userId: string (recipient UID)
+  userRole: 'admin' | 'state_authority' | 'city_authority' | 'citizen'
+  type: string (notification type enum)
+  title: string
+  body: string
+  data: object (additional payload)
+  read: boolean (default: false)
+  actionUrl: string (deep link to relevant screen)
+  createdAt: timestamp
+  expiresAt: timestamp (optional, for auto-delete)
+}
+Indexes Required:
+
+userId + read + createdAt (for unread notifications query)
+userId + createdAt (for notification list)
+
+
+1. ADMIN NOTIFICATIONS
+Admin RECEIVES:
+A. New City Authority Registration Request (if self-registration enabled)
+
+Trigger: City Authority submits registration (pending approval by State)
+When: Immediately after submission
+Title: "New City Authority Request"
+Body: "[State] received registration from [CA Name] for [City]"
+Action: Tap to view → Navigate to State Authority's Pending Requests (informational only)
+Data: { type: 'ca_registration', stateId: uid, caName: name, city: city }
+
+B. System Critical Alerts
+
+Trigger: Server errors, database issues, security breaches
+When: Immediately
+Title: "🚨 System Alert"
+Body: "[Error Description]"
+Action: Tap to view logs
+Data: { type: 'system_alert', errorCode: code, details: object }
+
+C. Daily Summary (if enabled in settings)
+
+Trigger: Scheduled Cloud Function (runs daily at 9 AM)
+When: Every day at 9:00 AM
+Title: "Daily CivicWatch Summary"
+Body: "Today: [X] issues reported, [Y] resolved, [Z] escalated across India"
+Action: Tap to view → Dashboard
+Data: { type: 'daily_summary', stats: object }
+
+D. State Authority Activity (informational)
+
+Trigger: State Authority creates City Authority
+When: After creation
+Title: "State Authority Created City Account"
+Body: "[SA Name] created City Authority account for [City], [State]"
+Action: None (informational)
+Data: { type: 'sa_activity', saId: uid, caId: uid, city: city }
+
+
+Admin SENDS (Automatically):
+A. State Authority Account Created
+
+Recipient: Newly created State Authority
+Trigger: Admin creates State Authority account
+When: Immediately after creation
+Title: "✅ CivicWatch Account Created"
+Body: "Your State Authority account for [State] has been created. Check your email for login credentials."
+Action: Tap to open app → Login screen
+Data: { type: 'account_created', role: 'state_authority', state: state }
+
+B. Password Reset
+
+Recipient: State Authority whose password was reset
+Trigger: Admin resets password
+When: Immediately
+Title: "🔑 Password Reset"
+Body: "Your password has been reset by Admin. Check your email/SMS for new credentials."
+Action: Tap to login
+Data: { type: 'password_reset', resetBy: 'admin' }
+
+C. Account Deactivated
+
+Recipient: Deactivated State Authority
+Trigger: Admin deactivates account
+When: Immediately
+Title: "🚫 Account Deactivated"
+Body: "Your State Authority account has been deactivated. Contact admin for details."
+Action: None
+Data: { type: 'account_deactivated', reason: text }
+
+D. Account Activated
+
+Recipient: Reactivated State Authority
+Trigger: Admin activates account
+When: Immediately
+Title: "✅ Account Activated"
+Body: "Your State Authority account has been reactivated. You can now login."
+Action: Tap to login
+Data: { type: 'account_activated' }
+
+
+2. STATE AUTHORITY NOTIFICATIONS
+State Authority RECEIVES:
+A. New City Authority Registration Request
+
+Trigger: City Authority submits registration
+When: Immediately
+Title: "📋 New City Authority Request"
+Body: "[CA Name] requested registration for [City]"
+Action: Tap to view → Pending Requests screen
+Data: { type: 'ca_pending', caId: uid, caName: name, city: city }
+Badge: Show count on "Pending Requests" tab
+
+B. Issue Escalated to State
+
+Trigger: Issue remains in Recognized for >7 days OR In Work for >14 days
+When: When escalation occurs (Cloud Function runs daily, checks and escalates)
+Title: "🚨 Issue Escalated"
+Body: "[City] - [Issue Category]: [Issue Title] has been escalated"
+Action: Tap to view → Escalated Issue Detail
+Data: { type: 'issue_escalated', issueId: id, city: city, category: category, daysPending: days }
+Badge: Show count on "Escalated Issues" tab
+
+C. City Authority Created by Admin (informational)
+
+Trigger: Admin creates City Authority in SA's state
+When: After creation
+Title: "ℹ️ City Authority Created"
+Body: "Admin created City Authority for [City] in your state"
+Action: Tap to view → City Authorities List
+Data: { type: 'ca_created_by_admin', caId: uid, city: city }
+
+D. Daily State Summary (if enabled)
+
+Trigger: Scheduled Cloud Function
+When: Every day at 9:00 AM
+Title: "Daily Summary - [State]"
+Body: "Today: [X] issues escalated, [Y] issues resolved, [Z] pending CA approvals"
+Action: Tap to view → Dashboard
+Data: { type: 'daily_summary', stats: object }
+
+E. Account Actions by Admin
+
+Trigger: Admin resets password, deactivates, or modifies SA account
+When: Immediately
+Title: Based on action (Password Reset, Account Modified, etc.)
+Body: Action-specific message
+Action: Based on action
+Data: { type: action_type, details: object }
+
+
+State Authority SENDS (Automatically):
+A. City Authority Account Created
+
+Recipient: Newly created City Authority
+Trigger: State Authority creates City Authority
+When: Immediately
+Title: "✅ Account Created"
+Body: "Your City Authority account for [City] has been created. Check email for credentials."
+Action: Tap to login
+Data: { type: 'account_created', role: 'city_authority', city: city, state: state }
+
+B. City Authority Registration Approved
+
+Recipient: City Authority whose registration was approved
+Trigger: State Authority approves pending registration
+When: Immediately
+Title: "✅ Registration Approved"
+Body: "Your City Authority registration for [City] has been approved. You can now login."
+Action: Tap to login
+Data: { type: 'registration_approved', city: city }
+
+C. City Authority Registration Rejected
+
+Recipient: City Authority whose registration was rejected
+Trigger: State Authority rejects pending registration
+When: Immediately
+Title: "❌ Registration Rejected"
+Body: "Your City Authority registration has been rejected. Reason: [reason]"
+Action: None
+Data: { type: 'registration_rejected', reason: text }
+
+D. Password Reset (for City Authority)
+
+Recipient: City Authority whose password was reset
+Trigger: State Authority resets password
+When: Immediately
+Title: "🔑 Password Reset"
+Body: "Your password has been reset by [SA Name]. Check email/SMS for new credentials."
+Action: Tap to login
+Data: { type: 'password_reset', resetBy: 'state_authority' }
+
+E. Account Deactivated/Activated
+
+Recipient: City Authority
+Trigger: State Authority deactivates/activates account
+When: Immediately
+Title: Based on action
+Body: Action-specific message
+Action: Based on action
+Data: { type: action_type }
+
+F. Comment on Escalated Issue
+
+Recipient: City Authority responsible for escalated issue
+Trigger: State Authority adds comment/directive on escalated issue
+When: Immediately
+Title: "💬 State Authority Comment"
+Body: "[SA Name] commented on [Issue Title]: [Comment Preview]"
+Action: Tap to view → Escalated Issue Detail
+Data: { type: 'sa_comment', issueId: id, comment: text }
+
+
+3. CITY AUTHORITY NOTIFICATIONS
+City Authority RECEIVES:
+A. New Issue Reported in City
+
+Trigger: Citizen reports new issue in CA's city
+When: Immediately after issue submission
+Title: "📋 New Issue Reported"
+Body: "[Category] reported at [Location/Area]"
+Action: Tap to view → Issue Detail
+Data: { type: 'new_issue', issueId: id, category: category, location: coords }
+Badge: Show count on "Pending Issues" tab
+
+B. Issue Nearing Escalation (Warning)
+
+Trigger: Issue approaching escalation deadline
+When:
+
+Recognized status: 5 days (2 days before 7-day deadline)
+In Work status: 12 days (2 days before 14-day deadline)
+
+
+Title: "⚠️ Escalation Warning"
+Body: "[Issue Title] will escalate in 2 days. Please update status."
+Action: Tap to view → Issue Detail
+Data: { type: 'escalation_warning', issueId: id, daysRemaining: 2, currentStatus: status }
+Priority: HIGH (show as urgent notification)
+
+C. Issue Escalated to State
+
+Trigger: Issue escalates (CA failed to update in time)
+When: When escalation occurs
+Title: "🚨 Issue Escalated"
+Body: "[Issue Title] has been escalated to State Authority due to delay"
+Action: Tap to view → Escalated Issue Detail
+Data: { type: 'issue_escalated_warning', issueId: id, reason: 'status_unchanged' }
+Priority: URGENT
+
+D. State Authority Comment/Directive
+
+Trigger: State Authority comments on escalated issue
+When: Immediately
+Title: "💬 State Authority Comment"
+Body: "[SA Name] commented: [Comment Preview]"
+Action: Tap to view → Issue Detail
+Data: { type: 'sa_comment', issueId: id, comment: text }
+
+E. Citizen Comment on Issue
+
+Trigger: Citizen adds comment on issue managed by CA
+When: Immediately
+Title: "💬 New Comment"
+Body: "[Citizen Name] commented on [Issue Title]"
+Action: Tap to view → Issue Detail
+Data: { type: 'citizen_comment', issueId: id, comment: text }
+
+F. Issue Upvoted (Threshold Notifications)
+
+Trigger: Issue crosses upvote milestones (10, 25, 50, 100 upvotes)
+When: When threshold crossed
+Title: "👍 Issue Gaining Attention"
+Body: "[Issue Title] has received [X] upvotes. Community priority increasing."
+Action: Tap to view → Issue Detail
+Data: { type: 'upvote_milestone', issueId: id, upvoteCount: count }
+
+G. Daily Summary (if enabled)
+
+Trigger: Scheduled Cloud Function
+When: Every day at 9:00 AM
+Title: "Daily Summary - [City]"
+Body: "Today: [X] new issues, [Y] resolved, [Z] pending, [W] nearing escalation"
+Action: Tap to view → Dashboard
+Data: { type: 'daily_summary', stats: object }
+
+H. Account Actions by State Authority/Admin
+
+Trigger: Password reset, account modified, etc.
+When: Immediately
+Title: Based on action
+Body: Action-specific message
+Action: Based on action
+Data: { type: action_type }
+
+
+City Authority SENDS (Automatically):
+A. Issue Status Updated (to Citizen Reporter)
+
+Recipient: Citizen who reported the issue
+Trigger: City Authority updates issue status
+When: Immediately after status change
+Title: Based on new status:
+
+Recognized: "✅ Issue Verified"
+In Work: "🔧 Work Started"
+Done: "✅ Issue Resolved"
+
+
+Body:
+
+Recognized: "Your reported [Category] has been verified and recognized"
+In Work: "Work has started on your reported [Category]"
+Done: "Your reported [Category] has been resolved. View before/after photos"
+
+
+Action: Tap to view → Issue Detail
+Data: { type: 'status_updated', issueId: id, newStatus: status }
+
+B. Issue Marked Invalid (to Citizen Reporter)
+
+Recipient: Citizen who reported
+Trigger: City Authority marks issue as invalid/spam
+When: Immediately
+Title: "ℹ️ Issue Marked Invalid"
+Body: "Your report has been marked as invalid. Reason: [reason]"
+Action: Tap to view → Issue Detail (shows invalid status)
+Data: { type: 'issue_invalid', issueId: id, reason: text }
+
+C. City Authority Comment (to Issue Followers)
+
+Recipient: Citizen reporter + all users who upvoted/commented
+Trigger: City Authority adds official comment/update
+When: Immediately
+Title: "🔔 Official Update"
+Body: "[City] Authority: [Comment Preview]"
+Action: Tap to view → Issue Detail
+Data: { type: 'ca_comment', issueId: id, comment: text }
+
+
+4. CITIZEN NOTIFICATIONS
+Citizen RECEIVES:
+A. Issue Status Updated
+
+Trigger: City Authority updates status of citizen's reported issue
+When: Immediately
+Title: Based on status (see City Authority SENDS section above)
+Body: Status-specific message
+Action: Tap to view → Issue Detail
+Data: { type: 'status_updated', issueId: id, newStatus: status }
+
+B. Comment on My Issue
+
+Trigger: Anyone comments on issue reported by citizen
+When: Immediately
+Title: "💬 New Comment on Your Issue"
+Body: "[User Name] commented: [Comment Preview]"
+Action: Tap to view → Issue Detail
+Data: { type: 'comment_on_my_issue', issueId: id, commenterName: name }
+
+C. City Authority Official Update
+
+Trigger: City Authority posts official update/comment
+When: Immediately
+Title: "🔔 Official Update"
+Body: "[City] Authority: [Update Preview]"
+Action: Tap to view → Issue Detail
+Data: { type: 'official_update', issueId: id, update: text }
+
+D. Issue Resolved (with Before/After Photos)
+
+Trigger: City Authority marks issue as Done
+When: Immediately
+Title: "✅ Issue Resolved!"
+Body: "Your reported [Category] has been resolved. View before/after photos."
+Action: Tap to view → Issue Detail (shows before/after comparison)
+Data: { type: 'issue_resolved', issueId: id, afterPhotoUrl: url }
+
+E. Issue Escalated (Informational)
+
+Trigger: Issue escalates to State Authority
+When: When escalation occurs
+Title: "🚨 Issue Escalated"
+Body: "Your issue has been escalated to State Authority for faster resolution"
+Action: Tap to view → Issue Detail (shows escalation badge)
+Data: { type: 'issue_escalated', issueId: id }
+
+F. Comment on Followed Issue
+
+Trigger: Someone comments on issue citizen upvoted/commented on
+When: Immediately
+Title: "💬 New Comment"
+Body: "[User Name] commented on [Issue Title]"
+Action: Tap to view → Issue Detail
+Data: { type: 'comment_on_followed_issue', issueId: id }
+
+G. Upvote Milestone on My Issue
+
+Trigger: Citizen's reported issue crosses upvote milestones
+When: At 10, 25, 50, 100 upvotes
+Title: "🔥 Your Issue Gaining Attention"
+Body: "Your reported [Category] has received [X] upvotes!"
+Action: Tap to view → Issue Detail
+Data: { type: 'my_issue_upvote_milestone', issueId: id, upvoteCount: count }
+
+H. Nearby Issue Reported (Optional)
+
+Trigger: New issue reported within 500m radius of citizen's location
+When: When new issue created
+Title: "📍 Nearby Issue Reported"
+Body: "[Category] reported 200m from your location"
+Action: Tap to view → Issue Detail
+Data: { type: 'nearby_issue', issueId: id, distance: meters }
+Note: Only if citizen enabled location-based notifications in settings
+
+I. Weekly Summary (Optional)
+
+Trigger: Scheduled Cloud Function
+When: Every Sunday at 6:00 PM
+Title: "Weekly Summary - [City]"
+Body: "This week: [X] issues reported, [Y] resolved in your city"
+Action: Tap to view → Home Feed
+Data: { type: 'weekly_summary', stats: object }
+
+
+5. NOTIFICATION PREFERENCES (All Users)
+Settings Screen → Notifications Section:
+Toggle Options:
+Push Notifications:
+
+☑ Enable Push Notifications (master toggle)
+
+Admin:
+
+☑ System alerts
+☑ Daily summary
+☐ State Authority activity (optional)
+
+State Authority:
+
+☑ New City Authority requests
+☑ Issue escalations
+☑ Daily summary
+☐ City Authority activity
+
+City Authority:
+
+☑ New issues reported
+☑ Escalation warnings (cannot disable - critical)
+☑ Issue escalated (cannot disable - critical)
+☑ State Authority comments
+☑ Citizen comments
+☐ Upvote milestones
+☑ Daily summary
+
+Citizen:
+
+☑ Status updates on my issues (cannot disable)
+☑ Comments on my issues
+☑ Official updates from authorities
+☐ Comments on followed issues
+☐ Upvote milestones
+☐ Nearby issues
+☐ Weekly summary
+
+Email Notifications (Optional):
+
+☐ Send important notifications via email
+☐ Daily/Weekly summaries via email
+
+Quiet Hours:
+
+Enable quiet hours: 10:00 PM to 8:00 AM (no notifications during this time except critical)
+Critical notifications bypass quiet hours: Escalation warnings, Issue escalated
+
+
+6. IN-APP NOTIFICATION CENTER
+Screen: Notifications List
+Layout:
+Header:
+
+"Notifications" title
+"Mark All as Read" button
+Filter icon (filter by type, read/unread)
+
+Notification Groups:
+
+Today (grouped by today)
+Yesterday
+This Week
+Older
+
+Each Notification Item:
+
+Icon (based on type: 📋 new issue, ✅ resolved, 🚨 escalated, 💬 comment)
+Title (bold if unread)
+Body (preview, truncated to 2 lines)
+Timestamp (e.g., "2 hours ago", "Yesterday 3:30 PM")
+Unread indicator (blue dot on left)
+Tap to view → Navigate to relevant screen
+
+Actions:
+
+Swipe left: "Mark as Read" / "Mark as Unread"
+Swipe right: "Delete"
+Long press: Select multiple → Bulk actions (Mark as read, Delete)
+
+Badge Count:
+
+Show unread count on Notifications tab icon
+Update in real-time
+
+Empty State:
+
+"No notifications yet" message
+Icon/illustration
+
+
+7. CLOUD FUNCTIONS FOR AUTOMATED NOTIFICATIONS
+Function 1: sendNotification
+Purpose: Generic function to send FCM notification
+Trigger: Called by other functions or manually
+Input:
+javascript{
+  userId: string,
+  title: string,
+  body: string,
+  data: object,
+  type: string
+}
+Logic:
+
+Fetch user's FCM token from Firestore users/{userId}.fcmToken
+Check user's notification preferences (if notification type is disabled, skip)
+Check quiet hours (if enabled and current time is in quiet hours, skip unless critical)
+Send FCM notification via Firebase Admin SDK
+Store notification in Firestore notifications collection
+Return success/failure
+
+
+Function 2: onIssueCreated
+Trigger: Firestore onCreate for issues/{issueId}
+Logic:
+
+Get issue city
+Query all City Authorities where city == issue.city and isActive == true
+For each City Authority:
+
+Call sendNotification with type: 'new_issue'
+
+
+Check if any citizens have "nearby issues" enabled
+Query citizens within 500m radius (using Firestore geohash or external service)
+Send "nearby issue" notifications
+
+
+Function 3: onIssueStatusUpdated
+Trigger: Firestore onUpdate for issues/{issueId} (when status field changes)
+Logic:
+
+Get old status and new status
+Get issue reporter (citizen UID)
+Send notification to reporter with type: 'status_updated'
+If new status == 'Done':
+
+Send special notification with type: 'issue_resolved' (mentions before/after photos)
+
+
+Get all users who upvoted/commented (follower list)
+Send notification to followers with type: 'status_updated_followed_issue'
+
+
+Function 4: checkEscalations (Scheduled)
+Trigger: Cloud Scheduler (runs daily at 12:00 AM)
+Logic:
+
+Query all issues where status == 'Recognized' AND daysSinceLastUpdate >= 7 AND escalated == false
+For each issue:
+
+Update Firestore: issues/{issueId} → escalated: true, escalatedAt: timestamp, escalationReason: 'status_unchanged_7_days'
+Get State Authority UID for that state
+Send notification to State Authority with type: 'issue_escalated'
+Get City Authority UID assigned to issue
+Send notification to City Authority with type: 'issue_escalated_warning'
+Send notification to issue reporter (citizen) with type: 'issue_escalated'
+
+
+Query all issues where status == 'In Work' AND daysSinceLastUpdate >= 14 AND escalated == false
+Repeat same logic as step 2
+
+
+Function 5: sendEscalationWarnings (Scheduled)
+Trigger: Cloud Scheduler (runs daily at 9:00 AM)
+Logic:
+
+Query issues where status == 'Recognized' AND daysSinceLastUpdate == 5 (2 days before escalation)
+For each issue:
+
+Get assigned City Authority
+Send notification with type: 'escalation_warning', daysRemaining: 2
+
+
+Query issues where status == 'In Work' AND daysSinceLastUpdate == 12
+Repeat step 2
+
+
+Function 6: onCommentAdded
+Trigger: Firestore onCreate for comments/{commentId} (subcollection under issues/{issueId})
+Logic:
+
+Get issue ID from parent collection
+Get issue details (reporter UID, follower list)
+Get commenter UID and role
+If commenter is City Authority:
+
+Send to reporter + followers with type: 'official_update'
+
+
+If commenter is State Authority:
+
+Send to assigned City Authority with type: 'sa_comment'
+
+
+If commenter is Citizen:
+
+Send to reporter (if different) with type: 'comment_on_my_issue'
+Send to followers with type: 'comment_on_followed_issue'
+
+
+
+
+Function 7: onUpvoteMilestone
+Trigger: Firestore onUpdate for issues/{issueId} (when upvotes field changes)
+Logic:
+
+Get old upvote count and new upvote count
+Check if milestone crossed (10, 25, 50, 100)
+If milestone crossed:
+
+Send to issue reporter with type: 'my_issue_upvote_milestone'
+Send to assigned City Authority with type: 'upvote_milestone'
+
+
+
+
+Function 8: sendDailySummaries (Scheduled)
+Trigger: Cloud Scheduler (runs daily at 9:00 AM)
+Logic:
+
+Calculate yesterday's stats:
+
+Issues reported (total, by state, by city)
+Issues resolved
+Issues escalated
+Pending approvals (CA registrations)
+
+
+Send to Admin with type: 'daily_summary', stats: {...}
+For each State Authority:
+
+Calculate stats for their state
+Send with type: 'daily_summary'
+
+
+For each City Authority (if enabled in preferences):
+
+Calculate stats for their city
+Send with type: 'daily_summary'
+
+
+
+
+Function 9: sendWeeklySummaries (Scheduled)
+Trigger: Cloud Scheduler (runs every Sunday at 6:00 PM)
+Logic:
+
+Calculate last 7 days stats for each city
+For each citizen (if enabled in preferences):
+
+Get their city
+Send summary with type: 'weekly_summary'
+
+
+
+
+8. NOTIFICATION PAYLOAD STRUCTURE
+FCM Notification Format:
+javascript{
+  notification: {
+    title: "Notification Title",
+    body: "Notification Body",
+    sound: "default",
+    badge: "1" // unread count
+  },
+  data: {
+    type: "notification_type",
+    issueId: "issue_id_if_applicable",
+    actionUrl: "/screen/path", // deep link
+    // ... additional custom data
+  },
+  token: "user_fcm_token"
+}
+```
+
+---
+
+## **9. DEEP LINKING & NAVIGATION**
+
+**When User Taps Notification:**
+
+**Foreground (App Open):**
+- Navigate to relevant screen immediately
+
+**Background/Closed (App Not Open):**
+- Open app → Parse `data.actionUrl` → Navigate to screen
+
+**Deep Link Format:**
+```
+civicwatch://notifications/{notificationId}
+civicwatch://issues/{issueId}
+civicwatch://dashboard
+civicwatch://pending-requests
+civicwatch://escalated-issues
+```
+
+**Navigation Logic:**
+```
+data.actionUrl = "/issues/12345"
+→ Navigate to IssueDetailScreen(issueId: "12345")
+
+data.actionUrl = "/dashboard"
+→ Navigate to Dashboard
+
+data.actionUrl = "/pending-requests"
+→ Navigate to PendingRequestsScreen
+
+10. NOTIFICATION PERMISSION HANDLING
+On First App Launch:
+
+Show explanation: "CivicWatch sends notifications to keep you updated on issue status"
+Request notification permission
+Store permission status in local storage
+
+If Permission Denied:
+
+Show in-app banner: "Enable notifications to stay updated"
+Button: "Enable in Settings" (deep link to device settings)
+
+Re-prompt Strategy:
+
+Don't spam permission requests
+Show contextual prompts (e.g., when user reports first issue: "Enable notifications to get updates on this issue")
+
+
+11. TESTING REQUIREMENTS
+Manual Testing:
+✅ Admin receives new CA registration notification
+✅ Admin receives system alerts
+✅ Admin daily summary sent at 9 AM
+✅ State Authority receives new CA request
+✅ State Authority receives escalation notification
+✅ State Authority daily summary sent
+✅ City Authority receives new issue notification
+✅ City Authority receives escalation warning (5 days Recognized, 12 days In Work)
+✅ City Authority receives issue escalated notification
+✅ City Authority receives SA comment notification
+✅ City Authority receives citizen comment notification
+✅ Citizen receives status update notifications
+✅ Citizen receives comment notifications
+✅ Citizen receives official update notifications
+✅ Citizen receives issue resolved notification
+✅ Citizen receives upvote milestone notification
+✅ Nearby issues notification works (500m radius)
+✅ Weekly summary sent to citizens on Sunday
+✅ Quiet hours respected (no notifications during quiet time except critical)
+✅ Notification preferences toggle works (disabling notification type stops notifications)
+✅ In-app notification center shows all notifications
+✅ Unread badge count updates correctly
+✅ Tapping notification navigates to correct screen
+✅ Mark as read/unread works
+✅ Delete notification works
+✅ Bulk actions work (select multiple, mark read, delete)
+Automated Testing:
+
+Test Cloud Functions locally (Firebase emulators)
+Test FCM token storage/update
+Test notification payload generation
+Test escalation logic (mock time passage)
+
+
+12. SUCCESS CRITERIA
+Notification System is COMPLETE when:
+✅ All users receive role-specific notifications accurately
+✅ Notifications are timely (sent immediately after trigger)
+✅ FCM tokens are stored and updated correctly
+✅ Notification preferences are respected
+✅ Quiet hours work correctly
+✅ Critical notifications bypass quiet hours
+✅ In-app notification center displays all notifications
+✅ Unread badge counts are accurate
+✅ Tapping notification navigates to correct screen
+✅ Deep linking works for all notification types
+✅ Cloud Functions send notifications automatically
+✅ Scheduled notifications (daily/weekly summaries) run on time
+✅ Escalation warnings sent 2 days before deadline
+✅ Escalation notifications sent immediately when escalation occurs
+✅ All notification types tested and working
+✅ No duplicate notifications
+✅ No missing notifications
+✅ Performance is smooth (notifications don't lag app)
+✅ Notification permission handled gracefully
+✅ Users can enable/disable notification types
+✅ Mark as read/unread works correctly
+✅ Delete works correctly
+✅ Bulk actions work correctly
+
+BUILD COMPLETE NOTIFICATION SYSTEM. REAL-TIME. RELIABLE. 🚀
