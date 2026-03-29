@@ -1,5 +1,6 @@
 import 'package:civic_watch/services/admin_service.dart';
 import 'package:flutter/material.dart';
+import 'package:civic_watch/widgets/charts/dashboard_charts.dart';
 
 class SystemAnalyticsScreen extends StatelessWidget {
   const SystemAnalyticsScreen({super.key});
@@ -19,10 +20,25 @@ class SystemAnalyticsScreen extends StatelessWidget {
           }
 
           final data = snapshot.data ?? {};
+          final userPoints = [
+            ChartPoint('Citizens', _toDouble(data['citizens'])),
+            ChartPoint('City Auth', _toDouble(data['cityAuthorities'])),
+            ChartPoint('State Auth', _toDouble(data['stateAuthorities'])),
+            ChartPoint('Admins', _toDouble(data['admins'])),
+          ];
+
+          final issuePoints = [
+            ChartPoint('Resolved', _toDouble(data['resolvedIssues'])),
+            ChartPoint('In Progress', _toDouble(data['inProgressIssues'])),
+            ChartPoint('Pending', _toDouble(data['pendingIssues'])),
+            ChartPoint('Escalated', _toDouble(data['escalatedIssues'])),
+          ];
+
           return ListView(
             padding: const EdgeInsets.all(12),
             children: [
               _sectionTitle('Users'),
+              DonutChartCard(title: 'User Role Distribution', points: userPoints),
               _metricCard('Total Users', data['totalUsers'] ?? 0, Icons.people),
               _metricCard('Citizens', data['citizens'] ?? 0, Icons.person),
               _metricCard('City Authorities', data['cityAuthorities'] ?? 0,
@@ -32,6 +48,11 @@ class SystemAnalyticsScreen extends StatelessWidget {
               _metricCard('Admin', data['admins'] ?? 0, Icons.admin_panel_settings),
               const SizedBox(height: 10),
               _sectionTitle('Issues'),
+              ColumnChartCard(
+                title: 'Issue Status Overview',
+                points: issuePoints,
+                yAxisTitle: 'Issues',
+              ),
               _metricCard('Total Issues', data['totalIssues'] ?? 0,
                   Icons.report_problem),
               _metricCard('Resolved Issues', data['resolvedIssues'] ?? 0,
@@ -47,6 +68,11 @@ class SystemAnalyticsScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return 0;
   }
 
   Widget _sectionTitle(String text) {

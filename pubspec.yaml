@@ -23,15 +23,23 @@ dependencies:
   cloud_firestore: ^4.17.5
   firebase_messaging: ^14.9.4
   google_maps_flutter: ^2.14.0
+  syncfusion_flutter_charts: ^28.2.12
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
 
 flutter:
 
   uses-material-design: true
   assets:
+    - assets/images/appicon.png
     - assets/images/applogo.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/images/appicon.png

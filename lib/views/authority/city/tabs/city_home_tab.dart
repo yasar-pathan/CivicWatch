@@ -1,6 +1,7 @@
 import 'package:civic_watch/services/city_authority_service.dart';
 import 'package:civic_watch/views/authority/city/screens/city_issues_list_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:civic_watch/widgets/charts/dashboard_charts.dart';
 
 class CityHomeTab extends StatelessWidget {
   const CityHomeTab({super.key});
@@ -19,6 +20,16 @@ class CityHomeTab extends StatelessWidget {
 
         final data = snapshot.data ?? {};
         final categories = (data['categories'] as Map<String, dynamic>? ?? {});
+        final statusPoints = [
+          ChartPoint('Reported', _toDouble(data['reported'])),
+          ChartPoint('Recognized', _toDouble(data['recognized'])),
+          ChartPoint('In Work', _toDouble(data['inWork'])),
+          ChartPoint('Done', _toDouble(data['done'])),
+          ChartPoint('Escalated', _toDouble(data['escalated'])),
+        ];
+        final categoryPoints = categories.entries
+            .map((e) => ChartPoint(e.key, _toDouble(e.value)))
+            .toList();
 
         return ListView(
           padding: const EdgeInsets.all(12),
@@ -46,6 +57,13 @@ class CityHomeTab extends StatelessWidget {
                 _stat('Resolved This Month', data['resolvedThisMonth'] ?? 0,
                     const Color(0xFF10B981)),
               ],
+            ),
+            const SizedBox(height: 12),
+            DonutChartCard(title: 'Status Breakdown', points: statusPoints),
+            ColumnChartCard(
+              title: 'Category Volume',
+              points: categoryPoints,
+              yAxisTitle: 'Issues',
             ),
             const SizedBox(height: 14),
             const Text('Urgent Alerts',
@@ -228,6 +246,11 @@ class CityHomeTab extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return 0;
   }
 
   Widget _action(BuildContext context, String label, IconData icon, Widget target) {

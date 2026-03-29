@@ -22,6 +22,15 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _firebaseError;
   bool _isLoading = false;
 
+  String _normalizeRole(dynamic role) {
+    return role
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replaceAll(' ', '_')
+        .replaceAll('-', '_');
+  }
+
   @override
   void dispose() {
     // ✅ FIX 2 (important)
@@ -126,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final userData = userDoc.data()!;
-      final userRole = userData['role'] ?? 'citizen';
+      final userRole = _normalizeRole(userData['role'] ?? 'citizen');
       final userStatus = userData['status'] ?? 'approved';
       final isActive = userData['isActive'] != false;
 

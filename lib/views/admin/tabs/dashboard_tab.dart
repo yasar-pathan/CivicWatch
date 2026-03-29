@@ -4,6 +4,7 @@ import 'package:civic_watch/views/admin/city_authorities_screen.dart';
 import 'package:civic_watch/views/admin/screens/system_analytics_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:civic_watch/widgets/charts/dashboard_charts.dart';
 
 class DashboardTab extends StatelessWidget {
   const DashboardTab({super.key});
@@ -21,6 +22,14 @@ class DashboardTab extends StatelessWidget {
         }
 
         final data = snapshot.data ?? {};
+        final authorityPoints = [
+          ChartPoint('State', _toDouble(data['totalStateAuthorities'])),
+          ChartPoint('City', _toDouble(data['totalCityAuthorities'])),
+        ];
+        final issuePoints = [
+          ChartPoint('Total', _toDouble(data['totalIssues'])),
+          ChartPoint('Escalated', _toDouble(data['escalatedIssues'])),
+        ];
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -60,6 +69,18 @@ class DashboardTab extends StatelessWidget {
                   _buildStatCard(
                       'Total Issues', data['totalIssues'] ?? 0, const Color(0xFFEF4444)),
                 ],
+              ),
+              const SizedBox(height: 12),
+              DonutChartCard(
+                title: 'Authority Mix',
+                points: authorityPoints,
+                height: 220,
+              ),
+              ColumnChartCard(
+                title: 'Issue Snapshot',
+                points: issuePoints,
+                yAxisTitle: 'Count',
+                height: 230,
               ),
               const SizedBox(height: 24),
 
@@ -146,6 +167,11 @@ class DashboardTab extends StatelessWidget {
         );
       },
     );
+  }
+
+  double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return 0;
   }
 
   Widget _buildStatCard(String title, int value, Color color) {

@@ -5,6 +5,7 @@ import 'package:civic_watch/views/authority/state/screens/pending_city_requests_
 import 'package:civic_watch/views/authority/state/screens/state_activity_logs_screen.dart';
 import 'package:civic_watch/views/authority/state/screens/city_wise_analytics_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:civic_watch/widgets/charts/dashboard_charts.dart';
 
 class StateHomeTab extends StatelessWidget {
   const StateHomeTab({super.key});
@@ -22,6 +23,11 @@ class StateHomeTab extends StatelessWidget {
         }
 
         final data = snapshot.data ?? {};
+        final issuePoints = [
+          ChartPoint('Escalated', _toDouble(data['escalatedIssues'])),
+          ChartPoint('Non-Escalated', _toDouble(data['nonEscalatedIssues'])),
+          ChartPoint('Resolved Month', _toDouble(data['resolvedThisMonth'])),
+        ];
         return ListView(
           padding: const EdgeInsets.all(12),
           children: [
@@ -46,6 +52,8 @@ class StateHomeTab extends StatelessWidget {
                 _stat('Resolved This Month', data['resolvedThisMonth'] ?? 0, const Color(0xFF10B981)),
               ],
             ),
+            const SizedBox(height: 12),
+            DonutChartCard(title: 'Issue Composition', points: issuePoints),
             const SizedBox(height: 16),
             const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
@@ -91,6 +99,11 @@ class StateHomeTab extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return 0;
   }
 
   Widget _action(BuildContext context, String label, IconData icon, VoidCallback onTap) {

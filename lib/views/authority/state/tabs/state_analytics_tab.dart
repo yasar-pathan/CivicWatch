@@ -1,6 +1,7 @@
 import 'package:civic_watch/services/state_authority_service.dart';
 import 'package:civic_watch/views/authority/state/screens/city_wise_analytics_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:civic_watch/widgets/charts/dashboard_charts.dart';
 
 class StateAnalyticsTab extends StatelessWidget {
   const StateAnalyticsTab({super.key});
@@ -19,12 +20,34 @@ class StateAnalyticsTab extends StatelessWidget {
 
         final d = snapshot.data ?? {};
         final byCity = (d['byCity'] as Map<String, dynamic>? ?? {});
+        final statusPoints = [
+          ChartPoint('Reported', _toDouble(d['reported'])),
+          ChartPoint('Recognized', _toDouble(d['recognized'])),
+          ChartPoint('In Work', _toDouble(d['inWork'])),
+          ChartPoint('Done', _toDouble(d['done'])),
+          ChartPoint('Escalated', _toDouble(d['escalated'])),
+        ];
+
+        final cityPoints = byCity.entries
+            .map(
+              (e) => ChartPoint(
+                e.key,
+                _toDouble((e.value as Map<String, dynamic>)['total']),
+              ),
+            )
+            .toList();
 
         return ListView(
           padding: const EdgeInsets.all(12),
           children: [
             const Text('State Analytics', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
+            DonutChartCard(title: 'Status Breakdown', points: statusPoints),
+            ColumnChartCard(
+              title: 'City-wise Total Issues',
+              points: cityPoints,
+              yAxisTitle: 'Issues',
+            ),
             _tile('Total Issues', d['totalIssues'] ?? 0),
             _tile('Reported', d['reported'] ?? 0),
             _tile('Recognized', d['recognized'] ?? 0),
@@ -73,5 +96,10 @@ class StateAnalyticsTab extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return 0;
   }
 }

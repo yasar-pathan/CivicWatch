@@ -350,18 +350,22 @@ class StateAuthorityService {
     String query = '',
   }) async* {
     final state = await getCurrentState();
+    final stateCities = (await getStateCities()).toSet();
 
     yield* _firestore.collection('issues').snapshots().map((snapshot) {
       final docs = snapshot.docs.map((d) => {'id': d.id, ...d.data()}).toList();
 
       var filtered = docs.where((issue) {
-        final issueState = (issue['state'] ?? '').toString();
+        final issueState =
+            LocationNormalizer.toTitleCase((issue['state'] ?? '').toString());
         final issueCity = LocationNormalizer.toTitleCase(
             (issue['City'] ?? issue['city'] ?? '').toString());
         final issueEscalated = issue['escalated'] == true ||
             (issue['status'] ?? '').toString().toLowerCase() == 'escalated';
 
-        final stateMatch = issueState.isEmpty || issueState == state;
+        final stateMatch = issueState.isNotEmpty
+            ? issueState == LocationNormalizer.toTitleCase(state)
+            : stateCities.contains(issueCity);
         final escalatedMatch = issueEscalated == escalated;
         final cityMatch = selectedCity == 'All' || issueCity == selectedCity;
 

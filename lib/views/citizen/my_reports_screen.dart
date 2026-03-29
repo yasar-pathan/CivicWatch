@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:civic_watch/models/issue_model.dart';
 import 'package:civic_watch/views/citizen/issue_detail_screen.dart';
 import 'package:civic_watch/views/citizen/edit_issue_screen.dart';
+import 'package:civic_watch/widgets/charts/dashboard_charts.dart';
 
 class MyReportsScreen extends StatefulWidget {
   const MyReportsScreen({super.key});
@@ -166,33 +167,46 @@ class _MyReportsScreenState extends State<MyReportsScreen>
                 .length;
           }
 
-          return Row(
+          return Column(
             children: [
-              Expanded(
-                child: _buildStatCard(
-                  total.toString(),
-                  'TOTAL',
-                  Icons.assignment,
-                  0,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      total.toString(),
+                      'TOTAL',
+                      Icons.assignment,
+                      0,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatCard(
+                      active.toString(),
+                      'ACTIVE',
+                      Icons.pending,
+                      1,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatCard(
+                      resolved.toString(),
+                      'RESOLVED',
+                      Icons.check_circle,
+                      2,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  active.toString(),
-                  'ACTIVE',
-                  Icons.pending,
-                  1,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  resolved.toString(),
-                  'RESOLVED',
-                  Icons.check_circle,
-                  2,
-                ),
+              const SizedBox(height: 12),
+              DonutChartCard(
+                title: 'My Report Distribution',
+                points: [
+                  ChartPoint('Active', active.toDouble()),
+                  ChartPoint('Resolved', resolved.toDouble()),
+                ],
+                height: 220,
               ),
             ],
           );

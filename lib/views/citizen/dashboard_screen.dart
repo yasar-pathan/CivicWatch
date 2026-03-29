@@ -9,6 +9,7 @@ import 'package:civic_watch/views/citizen/my_reports_screen.dart';
 import 'package:civic_watch/views/citizen/map_view_screen.dart';
 import 'package:civic_watch/views/citizen/profile_screen.dart';
 import 'package:civic_watch/utils/location_normalizer.dart';
+import 'package:civic_watch/widgets/charts/dashboard_charts.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -27,6 +28,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   String _userCityNormalized = '';
   bool _isLoadingCity = true;
   String _searchQuery = ''; // Added search query state
+
+  double _safeIntervalStart(double base, double step, int index) {
+    // Keep Interval start in range to avoid runtime assertion failures.
+    return (base + (index * step)).clamp(0.0, 0.95).toDouble();
+  }
 
   @override
   void initState() {
@@ -460,18 +466,31 @@ class _DashboardScreenState extends State<DashboardScreen>
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
+          child: Column(
             children: [
-              Expanded(
-                child: _buildStatCard(reportedCount.toString(), 'REPORTED', 0),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(reportedCount.toString(), 'REPORTED', 0),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatCard(resolvedCount.toString(), 'RESOLVED', 1),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatCard(impactCount.toString(), 'IMPACT', 2),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(resolvedCount.toString(), 'RESOLVED', 1),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(impactCount.toString(), 'IMPACT', 2),
+              const SizedBox(height: 12),
+              DonutChartCard(
+                title: 'City Issue Mix',
+                points: [
+                  ChartPoint('Active', (reportedCount - resolvedCount).toDouble()),
+                  ChartPoint('Resolved', resolvedCount.toDouble()),
+                ],
+                height: 220,
               ),
             ],
           ),
@@ -481,21 +500,19 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildStatCard(String number, String label, int index) {
+    final start = _safeIntervalStart(0.2, 0.1, index);
+
     return FadeTransition(
       opacity: CurvedAnimation(
         parent: _fadeController,
-        curve: Interval(0.2 + (index * 0.1), 1.0, curve: Curves.easeOut),
+        curve: Interval(start, 1.0, curve: Curves.easeOut),
       ),
       child: SlideTransition(
         position: Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
             .animate(
               CurvedAnimation(
                 parent: _fadeController,
-                curve: Interval(
-                  0.2 + (index * 0.1),
-                  1.0,
-                  curve: Curves.easeOut,
-                ),
+                curve: Interval(start, 1.0, curve: Curves.easeOut),
               ),
             ),
         child: Container(
@@ -578,10 +595,12 @@ class _DashboardScreenState extends State<DashboardScreen>
       _ => null,
     };
 
+    final start = _safeIntervalStart(0.3, 0.05, index);
+
     return FadeTransition(
       opacity: CurvedAnimation(
         parent: _fadeController,
-        curve: Interval(0.3 + (index * 0.05), 1.0, curve: Curves.easeOut),
+        curve: Interval(start, 1.0, curve: Curves.easeOut),
       ),
       child: GestureDetector(
         onTap: () {
@@ -788,21 +807,19 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildIssueCard(Issue issue, int index) {
+    final start = _safeIntervalStart(0.3, 0.1, index);
+
     return FadeTransition(
       opacity: CurvedAnimation(
         parent: _fadeController,
-        curve: Interval(0.3 + (index * 0.1), 1.0, curve: Curves.easeOut),
+        curve: Interval(start, 1.0, curve: Curves.easeOut),
       ),
       child: SlideTransition(
         position: Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
             .animate(
               CurvedAnimation(
                 parent: _fadeController,
-                curve: Interval(
-                  0.3 + (index * 0.1),
-                  1.0,
-                  curve: Curves.easeOut,
-                ),
+                curve: Interval(start, 1.0, curve: Curves.easeOut),
               ),
             ),
         child: GestureDetector(

@@ -329,10 +329,30 @@ class _ReportIssueScreenState extends State<ReportIssueScreen>
       // Upload image to Firebase Storage
       String photoUrl = await _uploadImage(_imageFile!);
 
-      // Fetch user details for City
+      // Resolve issue location metadata from GPS location.
       String city = 'Unknown';
       String cityNormalized = '';
+      String state = '';
       String reporterName = user.displayName?.trim() ?? '';
+
+      try {
+        final placemarks = await placemarkFromCoordinates(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+        );
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          final rawCity =
+              place.locality ?? place.subAdministrativeArea ?? place.subLocality ?? '';
+          city = LocationNormalizer.toTitleCase(rawCity);
+          cityNormalized = LocationNormalizer.normalize(rawCity);
+          state =
+              LocationNormalizer.toTitleCase(place.administrativeArea ?? '');
+        }
+      } catch (e) {
+        debugPrint('Error resolving issue city/state from location: $e');
+      }
+
       try {
         DocumentSnapshot userDoc = await FirebaseFirestore.instance
             .collection('users')
@@ -340,10 +360,6 @@ class _ReportIssueScreenState extends State<ReportIssueScreen>
             .get();
         if (userDoc.exists && userDoc.data() != null) {
           final data = userDoc.data() as Map<String, dynamic>;
-          final rawCity = data['City'] ?? data['city'];
-          city = LocationNormalizer.toTitleCase(rawCity);
-          cityNormalized =
-              data['cityNormalized'] ?? LocationNormalizer.normalize(rawCity);
           reporterName =
               (data['name'] ??
                       data['fullName'] ??
@@ -353,7 +369,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen>
                   .trim();
         }
       } catch (e) {
-        debugPrint('Error fetching user city: $e');
+        debugPrint('Error fetching reporter profile: $e');
       }
 
       if (reporterName.isEmpty) {
@@ -373,6 +389,8 @@ class _ReportIssueScreenState extends State<ReportIssueScreen>
         'longitude': _currentPosition!.longitude,
         'address': _locationText,
         'City': city,
+        'city': city,
+        'state': state,
         'cityNormalized': cityNormalized,
         'status': 'Reported',
         'createdAt': FieldValue.serverTimestamp(),

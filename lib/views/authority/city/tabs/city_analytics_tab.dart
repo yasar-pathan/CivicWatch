@@ -1,6 +1,7 @@
 import 'package:civic_watch/services/city_authority_service.dart';
 import 'package:civic_watch/views/authority/city/screens/performance_comparison_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:civic_watch/widgets/charts/dashboard_charts.dart';
 
 class CityAnalyticsTab extends StatefulWidget {
   const CityAnalyticsTab({super.key});
@@ -29,6 +30,19 @@ class _CityAnalyticsTabState extends State<CityAnalyticsTab> {
         final category = (d['categoryBreakdown'] as Map<String, dynamic>? ?? {});
         final performance = (d['performanceScore'] ?? 0) as int;
 
+        final statusPoints = status.entries
+            .map((e) => ChartPoint(e.key, _toDouble(e.value)))
+            .toList();
+
+        final categoryPoints = category.entries
+            .map(
+              (e) => ChartPoint(
+                e.key,
+                _toDouble((e.value as Map<String, dynamic>)['total']),
+              ),
+            )
+            .toList();
+
         Color perfColor = const Color(0xFF22C55E);
         if (performance < 80) perfColor = const Color(0xFFF59E0B);
         if (performance < 50) perfColor = const Color(0xFFEF4444);
@@ -54,6 +68,12 @@ class _CityAnalyticsTabState extends State<CityAnalyticsTab> {
             _tile('Total', d['total'] ?? 0),
             _tile('Resolution Rate', '${(d['resolutionRate'] ?? 0.0).toStringAsFixed(1)}%'),
             _tile('Escalation Rate', '${(d['escalationRate'] ?? 0.0).toStringAsFixed(1)}%'),
+            DonutChartCard(title: 'Status Breakdown', points: statusPoints),
+            ColumnChartCard(
+              title: 'Category Volume',
+              points: categoryPoints,
+              yAxisTitle: 'Issues',
+            ),
             Card(
               color: const Color(0xFF1E293B),
               child: ListTile(
@@ -119,5 +139,10 @@ class _CityAnalyticsTabState extends State<CityAnalyticsTab> {
         ),
       ),
     );
+  }
+
+  double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return 0;
   }
 }

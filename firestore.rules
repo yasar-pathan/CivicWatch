@@ -91,16 +91,23 @@ service cloud.firestore {
 
       // Admin has full control. State authority can manage city authorities in own state.
       // Users can do limited self-update without changing role/status.
-      allow update, delete: if isAdmin() ||
-                            (isStateAuthority() &&
-                             resource.data.role == 'city_authority' &&
-                             resource.data.state == myState() &&
-                             request.resource.data.role == 'city_authority' &&
-                             request.resource.data.state == myState()) ||
-                            (isSignedIn() &&
-                             request.auth.uid == userId &&
-                             request.resource.data.role == resource.data.role &&
-                             request.resource.data.status == resource.data.status);
+      allow update: if isAdmin() ||
+            (isStateAuthority() &&
+             resource.data.role == 'city_authority' &&
+             resource.data.state == myState() &&
+             request.resource.data.role == 'city_authority' &&
+             request.resource.data.state == myState()) ||
+            (isSignedIn() &&
+             request.auth.uid == userId &&
+             request.resource.data.role == resource.data.role &&
+             request.resource.data.status == resource.data.status);
+
+      // Delete checks must rely on existing resource data (request.resource is null on delete).
+      allow delete: if isAdmin() ||
+            (isStateAuthority() &&
+             resource.data.role == 'city_authority' &&
+             resource.data.state == myState()) ||
+            (isSignedIn() && request.auth.uid == userId);
 
       // Per-user notifications (self-read/write, admin full access).
       match /notifications/{notificationId} {

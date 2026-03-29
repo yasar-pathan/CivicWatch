@@ -1,5 +1,6 @@
 import 'package:civic_watch/services/state_authority_service.dart';
 import 'package:flutter/material.dart';
+import 'package:civic_watch/widgets/charts/dashboard_charts.dart';
 
 class CityWiseAnalyticsScreen extends StatefulWidget {
   const CityWiseAnalyticsScreen({super.key});
@@ -34,6 +35,15 @@ class _CityWiseAnalyticsScreenState extends State<CityWiseAnalyticsScreen> {
               ? byCity.entries.toList()
               : byCity.entries.where((e) => e.key == _selectedCity).toList();
 
+          final points = rows
+              .map(
+                (entry) => ChartPoint(
+                  entry.key,
+                  _toDouble((entry.value as Map<String, dynamic>)['total']),
+                ),
+              )
+              .toList();
+
           if (rows.isEmpty) {
             return const Center(child: Text('No city analytics available.'));
           }
@@ -53,6 +63,11 @@ class _CityWiseAnalyticsScreenState extends State<CityWiseAnalyticsScreen> {
                 onChanged: (v) => setState(() => _selectedCity = v ?? 'All'),
               ),
               const SizedBox(height: 12),
+              ColumnChartCard(
+                title: 'City Total Issues',
+                points: points,
+                yAxisTitle: 'Issues',
+              ),
               ...rows.map((entry) {
                 final city = entry.key;
                 final v = entry.value as Map<String, dynamic>;
@@ -91,5 +106,10 @@ class _CityWiseAnalyticsScreenState extends State<CityWiseAnalyticsScreen> {
         },
       ),
     );
+  }
+
+  double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return 0;
   }
 }
