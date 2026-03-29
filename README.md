@@ -25,7 +25,7 @@ With interactive maps, real-time push notifications, and a multi-tiered governin
 ### 👤 For Citizens
 - **📍 Real-time Spatial Reporting**: Drop a pin on the integrated Google Map or let GPS auto-detect your location. Upload images and describe the issue instantly.
 - **🗺️ Interactive Map View**: Explore issues around you via an immersive Map view. Tap on issue markers for beautifully animated quick-insight cards.
-- **🔔 Push Notifications** *(Configured)*: Stay completely up-to-date with alerts when authorities recognize, work on, or resolve your issues.
+- **🔔 Push Notifications**: Stay completely up-to-date with alerts when authorities recognize, work on, or resolve your issues.
 - **💬 Community Interactions**: Comment on issues and communicate directly with authorities to foster transparency.
 - **📊 Real-time Dashboard**: View issue status progression (*Reported* → *Recognized* → *In Work* → *Resolved*) seamlessly.
 
@@ -54,7 +54,7 @@ With interactive maps, real-time push notifications, and a multi-tiered governin
 
 ## 📸 App Interface
 
-> *Below are placeholders representing the interface flow. Actual screenshots can be found in ssets/screenshots/.*
+> *Below are placeholders representing the interface flow. Actual screenshots can be found in `assets/screenshots/`.*
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/yasar-pathan/CivicWatch/main/assets/screenshots/dashboard.png" width="24%" alt="Dashboard" onerror="this.onerror=null; this.src='https://via.placeholder.com/200x400?text=Dashboard';" />&nbsp;
@@ -78,29 +78,29 @@ Follow these instructions to build and run the project on your local machine.
 ### 📦 Installation
 
 **1. Clone the repository:**
-\\\ash
+```bash
 git clone https://github.com/yasar-pathan/CivicWatch.git
 cd CivicWatch
-\\\
+```
 
 **2. Install dependencies:**
-\\\ash
+```bash
 flutter pub get
-\\\
+```
 
 **3. Configure Google Maps:**
-Inside the \ndroid/local.properties\ file, insert your API key:
-\\\properties
+Inside the `android/local.properties` file, insert your API key:
+```properties
 MAPS_API_KEY=AIzaSy...Your_Google_Maps_Api_Key_Here
-\\\
+```
 
 **4. Link Firebase Backend:**
-Ensure your \google-services.json\ is placed strictly inside \ndroid/app/\ matching the active package name.
+Ensure your `google-services.json` is placed strictly inside `android/app/` matching the active package name.
 
 **5. Ignite the app:**
-\\\ash
+```bash
 flutter run
-\\\
+```
 
 ---
 
@@ -108,7 +108,7 @@ flutter run
 
 A peek into the beautifully decoupled structure:
 
-\\\	ext
+```text
 lib/
  ├── core/                 # Typography, Custom App Themes, Configurations
  ├── models/               # Structured domain entities (Issues, Users, etc.)
@@ -120,7 +120,7 @@ lib/
       ├── authority/       # State & City Authority dashboard interfaces 
       ├── citizen/         # Map instances, Dashboard panels & Report flows
       └── authentication/  # Login, Registration & Route Guards
-\\\
+```
 
 ---
 
@@ -129,9 +129,9 @@ lib/
 Contributions, issues, and feature requests are highly welcomed! Feel free to check the [issues page](https://github.com/yasar-pathan/CivicWatch/issues). 
 
 1. Fork the Project
-2. Create your Feature Branch (\git checkout -b feature/AmazingIdea\)
-3. Commit your Changes (\git commit -m 'Implement amazing idea'\)
-4. Push to the Branch (\git push origin feature/AmazingIdea\)
+2. Create your Feature Branch (`git checkout -b feature/AmazingIdea`)
+3. Commit your Changes (`git commit -m 'Implement amazing idea'`)
+4. Push to the Branch (`git push origin feature/AmazingIdea`)
 5. Open a Pull Request.
 
 ---
